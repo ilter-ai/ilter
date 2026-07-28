@@ -1,0 +1,15 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { McpView, type Tab } from '../../components/mcp/McpView';
+
+export function getStaticPaths() {
+  return ['servers', 'permissions', 'marketplace'].map((tab) => ({ params: { tab } }));
+}
+
+const raw = Astro.params.tab;
+const tab: Tab = (['servers', 'permissions', 'marketplace'] as const).find(t => t === raw) ?? 'servers';
+---
+
+<Layout title="MCP">
+  <McpView client:only="react" initialTab={tab} />
+</Layout>

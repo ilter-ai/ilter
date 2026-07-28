@@ -1,0 +1,8 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { GroupForm } from '../../components/groups/GroupForm';
+---
+
+<Layout title="Create Group">
+  <GroupForm client:only="react" mode="create" />
+</Layout>

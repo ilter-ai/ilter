@@ -1,0 +1,15 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { LlmView, type Tab, TABS } from '../../components/llm/LlmView';
+
+export function getStaticPaths() {
+  return TABS.map((tab) => ({ params: { tab: tab.key } }));
+}
+
+const raw = Astro.params.tab;
+const tab: Tab = (TABS.map(t => t.key) as Tab[]).find(t => t === raw) ?? 'providers';
+---
+
+<Layout title="LLM">
+  <LlmView client:only="react" initialTab={tab} />
+</Layout>

@@ -1,0 +1,300 @@
+---
+import '../styles/globals.css';
+import Sidebar from '../components/layout/Sidebar.astro';
+import { CommandPalette } from '../components/ui/command-palette';
+import { Toaster } from '../components/ui/sonner';
+
+export interface Props {
+  title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title} | ILTER Admin</title>
+
+    <!-- Fonts: Inter + JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <!-- restore sidebar collapse before paint to avoid flash -->
+    <script is:inline>
+    (function(){
+      try {
+        if (localStorage.getItem('sidebar-collapsed') === 'true') {
+          document.documentElement.classList.add('sidebar-collapsed');
+        }
+      } catch(e) {}
+    })();
+    </script>
+  </head>
+  <body>
+    <!-- Loading spinner shown while auth is checked -->
+    <div id="auth-spinner" class="auth-spinner-overlay"><div class="auth-spinner"></div></div>
+
+    <Sidebar />
+    <div class="main-wrapper">
+      <header class="top-header">
+        <div class="header-left">
+          <h1 class="page-title">{title}</h1>
+        </div>
+        <div class="header-right">
+          <button type="button" class="cmdk-btn" id="cmdkBtn" aria-label="Command palette (Cmd+K)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <span class="cmdk-hint">Search...</span>
+            <kbd class="cmdk-kbd">⌘K</kbd>
+          </button>
+          <div class="header-status">
+            <span class="status-dot" />
+            <span class="status-text">All Systems Normal</span>
+          </div>
+
+        </div>
+      </header>
+      <main class="main-content">
+        <slot />
+      </main>
+    </div>
+
+    <!-- Toaster + Command Palette React islands -->
+    <Toaster client:load />
+    <CommandPalette client:load />
+  </body>
+</html>
+
+
+
+<script>
+  // Auth guard — redirect to login if unauthenticated
+  (async () => {
+    const spinner = document.getElementById('auth-spinner');
+    const wrapper = document.querySelector('.main-wrapper');
+    const path = window.location.pathname;
+
+    // Skip login page
+    if (path === '/login') {
+      if (spinner) spinner.remove();
+      if (wrapper) (wrapper as HTMLElement).style.visibility = 'visible';
+      return;
+    }
+
+    function getToken() {
+      const params = new URLSearchParams(window.location.search);
+      const urlToken = params.get('token');
+      if (urlToken) {
+        try { sessionStorage.setItem('ilter_admin_token', urlToken); } catch { /* sessionStorage quota guard */ }
+        const url = new URL(window.location.href);
+        url.searchParams.delete('token');
+        window.history.replaceState({}, '', url.toString());
+        return urlToken;
+      }
+      try {
+        const stored = sessionStorage.getItem('ilter_admin_token');
+        if (stored) return stored;
+      } catch { /* sessionStorage unavailable */ }
+      return null;
+    }
+
+    const token = getToken();
+    if (!token) {
+      window.location.replace('/login');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/stats', {
+        headers: { Authorization: 'Bearer ' + token },
+      });
+      if (!res.ok) {
+        window.location.replace('/login');
+        return;
+      }
+    } catch { /* network error, will be caught by redirect on 401 */ }
+
+    if (spinner) spinner.remove();
+    if (wrapper) (wrapper as HTMLElement).style.visibility = 'visible';
+  })();
+</script>
+
+<script>
+  // Restore sidebar collapse state from localStorage (body for JS consistency)
+  if (localStorage.getItem('sidebar-collapsed') === 'true') {
+    document.body.classList.add('sidebar-collapsed');
+  }
+</script>
+
+<style>
+  .main-wrapper {
+    margin-left: var(--sidebar-width);
+    min-height: 100vh;
+    background: var(--color-surface-50);
+    display: flex;
+    flex-direction: column;
+    visibility: hidden; /* hidden until auth guard completes */
+    transition: margin-left 0.25s ease;
+  }
+
+  :global(.sidebar-collapsed) .main-wrapper {
+    margin-left: var(--sidebar-width-collapsed);
+  }
+
+  .top-header {
+    height: var(--header-height);
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--header-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1.5rem;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .page-title {
+    font-size: 1.5em;
+    font-weight: 600;
+    color: var(--color-surface-900);
+    margin: 7px 0 0;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  /* ── Cmd+K button ── */
+  .cmdk-btn {
+    display: none;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--color-surface-300);
+    border-radius: var(--radius-lg);
+    background: white;
+    color: var(--color-surface-500);
+    font-size: 0.8125rem;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .cmdk-btn:hover {
+    border-color: var(--color-brand-400);
+  }
+
+  .cmdk-hint {
+    display: none;
+  }
+
+  .cmdk-kbd {
+    font-family: var(--font-family-mono);
+    font-size: 0.625rem;
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-surface-200);
+    background: var(--color-surface-50);
+    color: var(--color-surface-400);
+  }
+
+  .header-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.75rem;
+    background: var(--color-surface-100);
+    border-radius: var(--radius-full, 9999px);
+    font-size: 0.8125rem;
+    color: var(--color-surface-600);
+  }
+
+  .status-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--color-success);
+  }
+
+  .status-text {
+    font-weight: 500;
+  }
+
+  .main-content {
+    flex: 1;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    overflow-x: auto;
+  }
+
+  /* ── Responsive ── */
+  @media (min-width: 1024px) {
+    .cmdk-btn {
+      display: flex;
+    }
+    .cmdk-hint {
+      display: inline;
+    }
+  }
+
+  @media (max-width: 1023px) {
+    .page-title {
+      font-size: 1rem;
+    }
+  }
+
+  /* ── Auth guard spinner ── */
+  .auth-spinner-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface-50);
+    z-index: 9999;
+  }
+
+  .auth-spinner {
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 2px solid var(--color-surface-200);
+    border-top-color: var(--color-brand-500);
+    border-radius: 50%;
+    animation: auth-spin 0.6s linear infinite;
+  }
+
+  @keyframes auth-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* ── Tables horizontal scroll on mobile ── */
+  @media (max-width: 768px) {
+    .main-content {
+      padding: 1rem;
+    }
+
+    .main-content :global(.overflow-x-auto) {
+      margin: 0 -1rem;
+      padding: 0 1rem;
+    }
+  }
+</style>

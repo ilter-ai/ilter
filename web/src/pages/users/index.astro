@@ -1,0 +1,8 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { AccessManagementView } from '../../components/access/AccessManagementView';
+---
+
+<Layout title="Access Management">
+  <AccessManagementView client:only="react" initialTab="users" />
+</Layout>

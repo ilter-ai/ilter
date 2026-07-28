@@ -1,0 +1,24 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/ilter ./cmd/ilter"
+  bin = "./tmp/ilter"
+  args_bin = ["serve"]
+  include_ext = ["go"]
+  exclude_dir = [
+    "tmp", "deployments",
+    "tests", "data", ".git", "web", "api", "docs", "thoughts",
+  ]
+  exclude_regex = [".*_test\\.go$"]
+  delay = 3000
+  stop_on_error = true
+  rerun = true
+  rerun_delay = 2000
+  log = "build-errors.log"
+  send_interrupt = true
+  kill_delay = 500
+
+[log]
+  main_only = true
+  time = false

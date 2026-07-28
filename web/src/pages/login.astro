@@ -1,0 +1,421 @@
+---
+import '../styles/globals.css';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="generator" content={Astro.generator} />
+    <title>Login | ILTER Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="login-body">
+    <div class="login-container">
+      <div class="login-card">
+        <div class="login-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+        </div>
+        <h1 class="login-title">ILTER Admin</h1>
+        <p class="login-subtitle" id="login-subtitle">Enter your admin API key to access the dashboard</p>
+        <div id="login-root">
+          <div class="login-tabs">
+            <button type="button" class="login-tab active" id="tab-token">API Key</button>
+            <button type="button" class="login-tab" id="tab-user">Email &amp; Password</button>
+          </div>
+
+          <div class="login-form" id="form-token">
+            <div class="login-field">
+              <label class="login-label" for="token-input">API Key</label>
+              <div class="login-input-wrapper">
+                <input id="token-input" type="password" class="login-input" placeholder="Enter your API key..." autocomplete="off" />
+                <button type="button" id="toggle-visibility" class="toggle-visibility-btn" title="Show/hide key">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <button id="login-btn" class="login-btn" type="button">Sign In</button>
+          </div>
+
+          <div class="login-form hidden" id="form-user">
+            <div class="login-field">
+              <label class="login-label" for="email-input">Email</label>
+              <input id="email-input" type="email" class="login-input" placeholder="admin@localhost" autocomplete="username" />
+            </div>
+            <div class="login-field">
+              <label class="login-label" for="password-input">Password</label>
+              <div class="login-input-wrapper">
+                <input id="password-input" type="password" class="login-input" placeholder="Enter your password..." autocomplete="current-password" />
+                <button type="button" id="toggle-password-visibility" class="toggle-visibility-btn" title="Show/hide password">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <button id="user-login-btn" class="login-btn" type="button">Sign In</button>
+          </div>
+
+          <p id="login-error" class="login-error hidden"></p>
+          <p class="login-help">
+            <span id="help-text">Don't have a key? Check your environment variables or contact your administrator.</span>
+            <br />
+            <a href="#" class="login-help-link" id="helpLink">Need help?</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
+
+<script>
+  const tokenInput = document.getElementById('token-input') as HTMLInputElement;
+  const tokenBtn = document.getElementById('login-btn') as HTMLButtonElement;
+  const toggleBtn = document.getElementById('toggle-visibility') as HTMLButtonElement;
+
+  const emailInput = document.getElementById('email-input') as HTMLInputElement;
+  const passwordInput = document.getElementById('password-input') as HTMLInputElement;
+  const userBtn = document.getElementById('user-login-btn') as HTMLButtonElement;
+  const togglePasswordBtn = document.getElementById('toggle-password-visibility') as HTMLButtonElement;
+
+  const errorEl = document.getElementById('login-error') as HTMLElement;
+  const subtitleEl = document.getElementById('login-subtitle') as HTMLElement;
+  const helpTextEl = document.getElementById('help-text') as HTMLElement;
+  const tabToken = document.getElementById('tab-token') as HTMLButtonElement;
+  const tabUser = document.getElementById('tab-user') as HTMLButtonElement;
+  const formToken = document.getElementById('form-token') as HTMLElement;
+  const formUser = document.getElementById('form-user') as HTMLElement;
+
+  function redirectAfterLogin() {
+    const redirect = new URLSearchParams(window.location.search).get('redirect') || '/overview/';
+    window.location.href = redirect;
+  }
+
+  async function submitLogin(btn: HTMLButtonElement, url: string, body: Record<string, string>, onOk: (resBody: any) => void) {
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = 'Signing in...';
+    errorEl.classList.add('hidden');
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        const resBody = await res.json().catch(() => ({}));
+        onOk(resBody);
+        redirectAfterLogin();
+      } else if (res.status >= 500) {
+        showError('Backend server is down or unreachable. Please try again in a moment.');
+      } else {
+        const resBody = await res.json().catch(() => ({}));
+        const errMsg = resBody.error?.message || 'Invalid credentials. Please check and try again.';
+        showError(errMsg);
+      }
+    } catch (err) {
+      const errorMsg = err instanceof TypeError
+        ? 'Backend server is down or unreachable. Please try again in a moment.'
+        : 'Connection failed. Please check your network and try again.';
+      showError(errorMsg);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  }
+
+  function handleTokenLogin() {
+    const token = tokenInput.value.trim();
+    if (!token) {
+      showError('Please enter an API key');
+      return;
+    }
+    submitLogin(tokenBtn, '/api/auth/login', { token }, () => {
+      try { sessionStorage.setItem('ilter_admin_token', token); } catch { /* sessionStorage quota guard */ }
+    });
+  }
+
+  function handleUserLogin() {
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+    if (!email || !password) {
+      showError('Please enter your email and password');
+      return;
+    }
+    submitLogin(userBtn, '/api/auth/user-login', { email, password }, (resBody) => {
+      // The dashboard's client-side auth guard (Layout.astro) reads this
+      // sessionStorage key for its own fetch() Authorization headers — the
+      // user_token cookie alone isn't enough, or the guard redirects back
+      // to /login before ever hitting a cookie-authenticated API call.
+      if (resBody?.token) {
+        try { sessionStorage.setItem('ilter_admin_token', resBody.token); } catch { /* sessionStorage quota guard */ }
+      }
+    });
+  }
+
+  function showError(msg: string) {
+    errorEl.textContent = msg;
+    errorEl.classList.remove('hidden');
+  }
+
+  function showHelpTip() {
+    const isUserTab = !formUser.classList.contains('hidden');
+    showError(isUserTab
+      ? 'Tip: Use the email and password for your ILTER user account, created via `ilter init` or by an administrator.'
+      : 'Tip: The admin API key is usually set in the ILTER_ADMIN_API_KEY environment variable, or printed by `ilter init`. Check your deployment docs or contact your system administrator.');
+  }
+
+  function switchTab(target: 'token' | 'user') {
+    errorEl.classList.add('hidden');
+    const isToken = target === 'token';
+    formToken.classList.toggle('hidden', !isToken);
+    formUser.classList.toggle('hidden', isToken);
+    tabToken.classList.toggle('active', isToken);
+    tabUser.classList.toggle('active', !isToken);
+    subtitleEl.textContent = isToken
+      ? 'Enter your admin API key to access the dashboard'
+      : 'Sign in with your email and password';
+    helpTextEl.textContent = isToken
+      ? "Don't have a key? Check your environment variables or contact your administrator."
+      : "Don't have an account? Contact your administrator.";
+  }
+
+  toggleBtn?.addEventListener('click', () => {
+    const isPassword = tokenInput.type === 'password';
+    tokenInput.type = isPassword ? 'text' : 'password';
+    toggleBtn.style.opacity = isPassword ? '1' : '0.5';
+  });
+
+  togglePasswordBtn?.addEventListener('click', () => {
+    const isPassword = passwordInput.type === 'password';
+    passwordInput.type = isPassword ? 'text' : 'password';
+    togglePasswordBtn.style.opacity = isPassword ? '1' : '0.5';
+  });
+
+  document.getElementById('helpLink')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    showHelpTip();
+  });
+
+  tabToken.addEventListener('click', () => switchTab('token'));
+  tabUser.addEventListener('click', () => switchTab('user'));
+
+  tokenBtn.addEventListener('click', handleTokenLogin);
+  tokenInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleTokenLogin();
+  });
+
+  userBtn.addEventListener('click', handleUserLogin);
+  passwordInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleUserLogin();
+  });
+  emailInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleUserLogin();
+  });
+</script>
+
+<style>
+  .login-body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface-50, #f8f9fb);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color: var(--color-surface-900, #111827);
+  }
+
+  .login-container {
+    width: 100%;
+    max-width: 24rem;
+    padding: 1rem;
+  }
+
+  .login-card {
+    background: white;
+    border: 1px solid var(--color-surface-200, #e5e7eb);
+    border-radius: var(--radius-xl, 0.75rem);
+    box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.08));
+    padding: 2rem;
+    text-align: center;
+  }
+
+  .login-icon {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1rem;
+    color: var(--color-brand-500, #6366f1);
+  }
+
+  .login-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem;
+  }
+
+  .login-subtitle {
+    font-size: 0.875rem;
+    color: var(--color-surface-500, #6b7280);
+    margin: 0 0 1.5rem;
+  }
+
+  .login-tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 1.25rem;
+    padding: 0.25rem;
+    background: var(--color-surface-100, #f3f4f6);
+    border-radius: var(--radius-lg, 0.5rem);
+  }
+
+  .login-tab {
+    flex: 1;
+    padding: 0.5rem 0.5rem;
+    border: none;
+    background: transparent;
+    border-radius: calc(var(--radius-lg, 0.5rem) - 0.125rem);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-surface-500, #6b7280);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .login-tab.active {
+    background: white;
+    color: var(--color-surface-900, #111827);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  }
+
+  .login-form {
+    text-align: left;
+  }
+
+  .login-form.hidden {
+    display: none;
+  }
+
+  .login-field {
+    margin-bottom: 1rem;
+  }
+
+  .login-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    margin-bottom: 0.375rem;
+    color: var(--color-surface-700, #374151);
+  }
+
+  .login-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .login-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.625rem 0.75rem;
+    padding-right: 2.5rem;
+    border: 1px solid var(--color-surface-300, #d1d5db);
+    border-radius: var(--radius-lg, 0.5rem);
+    font-size: 0.875rem;
+    font-family: 'JetBrains Mono', monospace;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .login-input:focus {
+    border-color: var(--color-brand-400, #818cf8);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  }
+
+  .toggle-visibility-btn {
+    position: absolute;
+    right: 0.75rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.25rem;
+    color: var(--color-surface-400, #9ca3af);
+    transition: color 0.15s;
+    opacity: 0.5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .toggle-visibility-btn:hover {
+    color: var(--color-surface-600, #4b5563);
+  }
+
+  .login-error {
+    margin: 0.5rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--color-error, #ef4444);
+  }
+
+  .login-error.hidden {
+    display: none;
+  }
+
+  .login-btn {
+    width: 100%;
+    margin-top: 1rem;
+    padding: 0.625rem 1rem;
+    background: var(--color-brand-500, #6366f1);
+    color: white;
+    border: none;
+    border-radius: var(--radius-lg, 0.5rem);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .login-btn:hover {
+    background: var(--color-brand-600, #4f46e5);
+  }
+
+  .login-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .login-help {
+    margin-top: 1rem;
+    font-size: 0.75rem;
+    color: var(--color-surface-500, #6b7280);
+    text-align: center;
+  }
+
+  .login-help-link {
+    color: var(--color-brand-600, #4f46e5);
+    text-decoration: none;
+    font-weight: 500;
+    margin-left: 0.25rem;
+    cursor: pointer;
+  }
+
+  .login-help-link:hover {
+    text-decoration: underline;
+  }
+</style>

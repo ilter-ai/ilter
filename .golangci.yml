@@ -1,0 +1,20 @@
+linters:
+  enable:
+    - gofumpt
+    - goimports
+    - misspell
+    - revive
+linters-settings:
+  # govet shadow cannot be enabled via CLI flag — only via config file.
+  govet:
+    enable:
+      - shadow
+  goimports:
+    local-prefixes: github.com/ilter-ai/ilter
+  misspell:
+    locale: US
+run:
+  timeout: 5m
+issues:
+  exclude-dirs:
+    - internal/db/sqlc

@@ -1,0 +1,2932 @@
+openapi: 3.1.0
+info:
+  title: ILTER Gateway API
+  description: Secure, cost-optimizing LLM Gateway with built-in PII masking, loop detection, and load balancing.
+  version: 1.0.0
+servers:
+  - url: http://127.0.0.1:9191
+    description: Dashboard Server
+paths:
+  /healthz:
+    get:
+      tags: [Admin]
+      servers:
+        - url: http://127.0.0.1:9192
+      summary: Health check
+      description: Returns OK when the gateway is running.
+      responses:
+        '200':
+          description: Health check successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+  /metrics:
+    get:
+      summary: Prometheus Metrics
+      description: Returns OpenTelemetry metrics scrape target (port 9192).
+      responses:
+        '200':
+          description: Metrics retrieved successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+  /api/usage:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Get Key Usage Statistics
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 1000
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Key usage statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        api_key_id:
+                          type: integer
+                        name:
+                          type: string
+                        used_budget:
+                          type: number
+                        request_count:
+                          type: integer
+                        created_at:
+                          type: string
+                          format: date-time
+                  pagination:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      total:
+                        type: integer
+                      total_pages:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/cache/flush:
+    post:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Flush Semantic Cache
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Cache flushed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: flushed
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/chat/completions:
+    post:
+      tags: [Proxy]
+      servers:
+        - url: http://127.0.0.1:8181
+      summary: Proxy Chat Completion
+      description: Proxies chat completions to the load-balanced providers.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - messages
+              properties:
+                model:
+                  type: string
+                  example: gpt-4o
+                messages:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - role
+                      - content
+                    properties:
+                      role:
+                        type: string
+                        enum: [system, user, assistant, tool]
+                        example: user
+                      content:
+                        type: string
+                        example: Hello, how are you?
+                stream:
+                  type: boolean
+                  example: false
+                temperature:
+                  type: number
+                  minimum: 0.0
+                  maximum: 2.0
+                  example: 0.7
+                max_tokens:
+                  type: integer
+                  minimum: 1
+                  example: 1024
+      responses:
+        '200':
+          description: Completion successful
+          headers:
+            X-Ilter-Complexity-Score:
+              schema:
+                type: number
+                description: Complexity score of the prompt (0.0–10.0)
+            X-Ilter-Model-Selected:
+              schema:
+                type: string
+                description: The model selected by smart routing
+            X-Ilter-Cost:
+              schema:
+                type: number
+                description: Actual cost in USD for this request (non-streaming only)
+            X-Ilter-Cost-Estimate:
+              schema:
+                type: number
+                description: Estimated cost in USD for this request
+            X-Ilter-Alternative-Cost:
+              schema:
+                type: number
+                description: Estimated cost if using an alternative model
+            X-Ilter-Savings-Potential:
+              schema:
+                type: string
+                description: Savings percentage compared to alternative
+                example: 45%
+            X-Ilter-Loop-Warning:
+              schema:
+                type: boolean
+                description: Indicates potential agentic loop detected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  object:
+                    type: string
+                  created:
+                    type: integer
+                  model:
+                    type: string
+                  choices:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        index:
+                          type: integer
+                        message:
+                          type: object
+                          properties:
+                            role:
+                              type: string
+                            content:
+                              type: string
+                        finish_reason:
+                          type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/PIIBlocked'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '502':
+          $ref: '#/components/responses/ProviderError'
+  /v1/models:
+    get:
+      tags: [Proxy]
+      servers:
+        - url: http://127.0.0.1:8181
+      summary: List Models
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of available models
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        object:
+                          type: string
+                        created:
+                          type: integer
+                        owned_by:
+                          type: string
+                        provider:
+                          type: string
+                        type:
+                          type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /:
+    get:
+      tags: [Proxy]
+      servers:
+        - url: http://127.0.0.1:8181
+      summary: Dashboard UI
+      description: Serves the built-in HTML/CSS/JS admin dashboard.
+      responses:
+        '200':
+          description: Dashboard HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/stats:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Get Topline Dashboard Statistics
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_requests:
+                    type: integer
+                  total_cost:
+                    type: number
+                  estimated_savings:
+                    type: number
+                  success_count:
+                    type: integer
+                  error_count:
+                    type: integer
+                  cache_hits:
+                    type: integer
+                  avg_latency_ms:
+                    type: number
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/requests:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Get Audit Logs list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [success, error]
+          description: Filter by response status
+        - name: model
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by model name (LIKE match)
+      responses:
+        '200':
+          description: Logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        timestamp:
+                          type: string
+                          format: date-time
+                        api_key_id:
+                          type: integer
+                        model:
+                          type: string
+                        provider:
+                          type: string
+                        prompt_tokens:
+                          type: integer
+                        completion_tokens:
+                          type: integer
+                        total_cost:
+                          type: number
+                        latency_ms:
+                          type: integer
+                        status_code:
+                          type: integer
+                        cache_hit:
+                          type: boolean
+                        prompt_preview:
+                          type: string
+                        request_body:
+                          type: string
+                        response_body:
+                          type: string
+                  total:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/costs:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Get Cost Attribution with Time Series and Savings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["24h", "7d", "30d"]
+            default: "7d"
+          description: Time period for cost breakdown (24h, 7d, 30d)
+      responses:
+        '200':
+          description: Cost attribution retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_cost:
+                    type: number
+                    format: double
+                  total_requests:
+                    type: integer
+                  avg_cost_per_request:
+                    type: number
+                    format: double
+                  period:
+                    type: string
+                  by_provider:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        provider:
+                          type: string
+                        cost:
+                          type: number
+                          format: double
+                        count:
+                          type: integer
+                        pct:
+                          type: number
+                          format: double
+                  time_series:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        period:
+                          type: string
+                        cost:
+                          type: number
+                          format: double
+                        count:
+                          type: integer
+                  savings_summary:
+                    type: object
+                    properties:
+                      routing_savings:
+                        type: number
+                        format: double
+                      cache_savings:
+                        type: number
+                        format: double
+                      total_savings:
+                        type: number
+                        format: double
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/models:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Get Active Models List
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Models list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    provider:
+                      type: string
+                    type:
+                      type: string
+                    owned_by:
+                      type: string
+                    active:
+                      type: boolean
+                    configured:
+                      type: boolean
+                    display_name:
+                      type: string
+                    tier:
+                      type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/loops:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Get Loop Events list
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Loop events retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    detected_at:
+                      type: string
+                      format: date-time
+                    api_key_id:
+                      type: integer
+                    client_ip:
+                      type: string
+                    prompt_hash:
+                      type: string
+                    repeat_count:
+                      type: integer
+                    window_seconds:
+                      type: integer
+                    action_taken:
+                      type: string
+                    resolved_at:
+                      type: string
+                      format: date-time
+                      nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/pii-events:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Get PII Detection Events list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: pii_type
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by PII type
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by action taken (masked, blocked)
+        - name: key_id
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Filter by API key ID
+        - name: date_from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Start date filter
+        - name: date_to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: End date filter
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: PII events retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        timestamp:
+                          type: string
+                          format: date-time
+                        api_key_id:
+                          type: integer
+                        api_key_name:
+                          type: string
+                        pii_type:
+                          type: string
+                        action_taken:
+                          type: string
+                        client_ip:
+                          type: string
+                        request_id:
+                          type: integer
+                          nullable: true
+                        masked_prompt_preview:
+                          type: string
+                          nullable: true
+                        model:
+                          type: string
+                          nullable: true
+                        provider:
+                          type: string
+                          nullable: true
+                        latency_ms:
+                          type: integer
+                          nullable: true
+                        total_cost:
+                          type: number
+                          nullable: true
+                        cache_hit:
+                          type: boolean
+                          nullable: true
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+                  total_pages:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/optimize:
+    post:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Optimization Model Recommendation Helper
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - prompt
+                - current_model
+              properties:
+                prompt:
+                  type: string
+                  example: Say hello.
+                current_model:
+                  type: string
+                  example: gpt-4o
+      responses:
+        '200':
+          description: Recommendations computed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  complexity_score:
+                    type: number
+                  current_cost_estimate:
+                    type: number
+                  recommendations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        model:
+                          type: string
+                        tier:
+                          type: string
+                        input_cost:
+                          type: number
+                        output_cost:
+                          type: number
+                        savings_percent:
+                          type: number
+                        reason:
+                          type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/models/toggle:
+    post:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Toggle model enabled status
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - active
+              properties:
+                name:
+                  type: string
+                  example: gpt-4o
+                active:
+                  type: boolean
+                  example: true
+      responses:
+        '200':
+          description: Model status toggled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Model not found
+        '400':
+          description: Invalid request
+  /api/models/tier:
+    post:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Update model tier
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - tier
+              properties:
+                name:
+                  type: string
+                  example: gpt-4o
+                tier:
+                  type: string
+                  enum: [free, economy, standard, premium]
+                  example: premium
+      responses:
+        '200':
+          description: Model tier updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Model not found
+        '400':
+          description: Invalid tier value
+  /api/pii-stats:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Get PII detection statistics
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: PII statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_events:
+                    type: integer
+                  blocked_count:
+                    type: integer
+                  masked_count:
+                    type: integer
+                  blocked_rate:
+                    type: number
+                  type_breakdown:
+                    type: object
+                    additionalProperties:
+                      type: integer
+                  top_keys:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key_id:
+                          type: integer
+                        event_count:
+                          type: integer
+                  recent_trend:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: string
+                          format: date
+                        count:
+                          type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/pii-export:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Export PII events as CSV
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [csv, json]
+            default: csv
+        - name: pii_type
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by PII type
+        - name: date_from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: date_to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1000
+            minimum: 1
+            maximum: 10000
+      responses:
+        '200':
+          description: PII events exported successfully
+          content:
+            text/csv:
+              schema:
+                type: string
+                example: date,api_key_id,pii_type,mode\n2024-01-01T00:00:00Z,123,email,mask
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    timestamp:
+                      type: string
+                      format: date-time
+                    api_key_id:
+                      type: integer
+                    pii_type:
+                      type: string
+                    action_taken:
+                      type: string
+                    client_ip:
+                      type: string
+                    request_id:
+                      type: integer
+                      nullable: true
+                    model:
+                      type: string
+                      nullable: true
+                    provider:
+                      type: string
+                      nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /providers:
+    get:
+      tags: [Admin]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Get active provider backends
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Providers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    type:
+                      type: string
+                    base_url:
+                      type: string
+                    models:
+                      type: array
+                      items:
+                        type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Admin]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Create or update provider configuration
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - base_url
+                - api_key
+              properties:
+                name:
+                  type: string
+                  example: openai
+                base_url:
+                  type: string
+                  example: https://api.openai.com/v1
+                api_key:
+                  type: string
+                  example: sk-...
+      responses:
+        '200':
+          description: Provider configuration saved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400':
+          description: Invalid provider configuration
+  /api/providers:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Get active provider backends
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Providers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    type:
+                      type: string
+                    base_url:
+                      type: string
+                    models:
+                      type: array
+                      items:
+                        type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Create or update provider configuration
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - base_url
+                - api_key
+              properties:
+                name:
+                  type: string
+                  example: openai
+                base_url:
+                  type: string
+                  example: https://api.openai.com/v1
+                api_key:
+                  type: string
+                  example: sk-...
+      responses:
+        '200':
+          description: Provider configuration saved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400':
+          description: Invalid provider configuration
+  /api/smart-router/stats:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Get smart router statistics
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Smart router stats retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  config:
+                    type: object
+                    properties:
+                      strategy:
+                        type: string
+                      default_model:
+                        type: string
+                      complexity_thresholds:
+                        type: object
+                        properties:
+                          economy:
+                            type: number
+                          standard:
+                            type: number
+                  tier_distribution:
+                    type: object
+                    additionalProperties:
+                      type: integer
+                  avg_complexity_7d:
+                    type: number
+                  daily_avg_complexity:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: string
+                          format: date
+                        avg_complexity:
+                          type: number
+                  total_routed:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/smart-router/history:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Get smart router routing history
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 1000
+      responses:
+        '200':
+          description: Routing history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        timestamp:
+                          type: string
+                          format: date-time
+                        prompt_hash:
+                          type: string
+                        complexity_score:
+                          type: number
+                        selected_model:
+                          type: string
+                        selected_tier:
+                          type: string
+                        cost:
+                          type: number
+                        api_key_id:
+                          type: integer
+                        cache_hit:
+                          type: boolean
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+                  total_pages:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/smart-router/config:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Get smart router configuration
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Smart router configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  strategy:
+                    type: string
+                  default_model:
+                    type: string
+                  complexity_thresholds:
+                    type: object
+                    properties:
+                      economy:
+                        type: number
+                      standard:
+                        type: number
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '405':
+          description: Method not allowed
+    post:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Update smart router configuration
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - strategy
+                - default_model
+                - complexity_thresholds
+              properties:
+                strategy:
+                  type: string
+                  example: complexity_based
+                default_model:
+                  type: string
+                  example: gpt-4o-mini
+                complexity_thresholds:
+                  type: object
+                  properties:
+                    economy:
+                      type: number
+                    standard:
+                      type: number
+      responses:
+        '200':
+          description: Smart router configuration updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  strategy:
+                    type: string
+                  default_model:
+                    type: string
+                  complexity_thresholds:
+                    type: object
+                    properties:
+                      economy:
+                        type: number
+                      standard:
+                        type: number
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400':
+          description: Invalid configuration
+  /api-keys:
+    get:
+      tags: [Admin]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: List API keys
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 1000
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of API keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/APIKey'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Admin]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Create API Key
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  example: developer-key
+                scopes:
+                  type: string
+                  example: "*"
+                budget:
+                  type: number
+                  example: 50.0
+                rate_limit:
+                  type: integer
+                  example: 200
+                tier:
+                  type: string
+                  enum: [economy, standard, premium]
+                  example: standard
+                daily_limit:
+                  type: integer
+                  example: 1000
+      responses:
+        '200':
+          description: API Key created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+                  key:
+                    type: string
+                  scopes:
+                    type: string
+                  budget:
+                    type: number
+                  rate_limit:
+                    type: integer
+                  tier:
+                    type: string
+                  daily_limit:
+                    type: integer
+                  created_at:
+                    type: string
+                    format: date-time
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/keys:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: List API keys
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 1000
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of API keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/APIKey'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Create API Key
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  example: developer-key
+                scopes:
+                  type: string
+                  example: "*"
+                budget:
+                  type: number
+                  example: 50.0
+                rate_limit:
+                  type: integer
+                  example: 200
+                tier:
+                  type: string
+                  enum: [economy, standard, premium]
+                  example: standard
+                daily_limit:
+                  type: integer
+                  example: 1000
+      responses:
+        '200':
+          description: API Key created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+                  key:
+                    type: string
+                  scopes:
+                    type: string
+                  budget:
+                    type: number
+                  rate_limit:
+                    type: integer
+                  tier:
+                    type: string
+                  daily_limit:
+                    type: integer
+                  created_at:
+                    type: string
+                    format: date-time
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api-keys/{id}:
+    delete:
+      tags: [Admin]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Delete API Key
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: API key successfully deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: API key not found
+
+  /api/keys/{id}:
+    delete:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Delete API Key
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: API key successfully deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: API key not found
+
+  /api/circuit-breaker/summary:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Circuit Breaker Summary
+      description: Returns aggregated circuit breaker state and per-provider stats
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Circuit breaker summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary:
+                    type: object
+                    properties:
+                      total_circuits:
+                        type: integer
+                      closed_count:
+                        type: integer
+                      open_count:
+                        type: integer
+                      half_open_count:
+                        type: integer
+                      total_failures_24h:
+                        type: integer
+                  circuits:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        provider:
+                          type: string
+                        state:
+                          type: string
+                          enum: [closed, open, half-open, unknown]
+                        requests:
+                          type: integer
+                        successes:
+                          type: integer
+                        failures:
+                          type: integer
+                        consecutive_successes:
+                          type: integer
+                        consecutive_failures:
+                          type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/semantic-cache/summary:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Semantic Cache Summary
+      description: Returns aggregated semantic cache stats, hourly hit/miss breakdown, and top cached queries
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Semantic cache summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cache_hits_24h:
+                    type: integer
+                  cache_misses_24h:
+                    type: integer
+                  hit_rate_pct:
+                    type: number
+                  cache_size_entries:
+                    type: integer
+                  cache_size_mb:
+                    type: number
+                  avg_latency_saved_ms:
+                    type: number
+                  redis_connected:
+                    type: boolean
+                  top_queries:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        query_preview:
+                          type: string
+                        model:
+                          type: string
+                        hit_count:
+                          type: integer
+                        last_accessed:
+                          type: string
+                        avg_latency:
+                          type: number
+                  hourly_data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        time:
+                          type: string
+                        hits:
+                          type: integer
+                        misses:
+                          type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/latency/by-model:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Per-Model Latency Breakdown
+      description: Returns P50/P95/P99/avg latency grouped by model and provider, sorted by request count descending
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Per-model latency data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    model:
+                      type: string
+                    provider:
+                      type: string
+                    p50:
+                      type: number
+                    p95:
+                      type: number
+                    p99:
+                      type: number
+                    avg:
+                      type: number
+                    requests:
+                      type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/jobs:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: List Jobs
+      description: Returns all jobs with their associated triggers.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: A list of jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Job'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Create Job
+      description: Creates a new job with optional triggers.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  example: My Job
+                description:
+                  type: string
+                  example: AI-powered report generator
+                steps:
+                  type: string
+                  description: JSON array of Step objects
+                  example: '[{"type":"llm","model":"gpt-4o","prompt_id":1}]'
+                variables_config:
+                  type: string
+                  description: JSON object mapping variable names to sources
+                delivery_config:
+                  type: string
+                  description: JSON DeliveryConfig object
+                timeout_ms:
+                  type: integer
+                  example: 300000
+                enabled:
+                  type: boolean
+                  default: true
+                api_key_id:
+                  type: string
+                  description: API key ID to use for this job
+                triggers:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      kind:
+                        $ref: '#/components/schemas/TriggerKind'
+                      config:
+                        $ref: '#/components/schemas/TriggerConfig'
+      responses:
+        '201':
+          description: Job created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/jobs/stats:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Job Statistics
+      description: Returns aggregate statistics across all jobs and runs.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Job statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/jobs/{id}:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Get Job
+      description: Returns a single job with its triggers.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Update Job
+      description: Updates an existing job. Triggers are not affected by this endpoint.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: My Updated Job
+                description:
+                  type: string
+                steps:
+                  type: string
+                variables_config:
+                  type: string
+                delivery_config:
+                  type: string
+                timeout_ms:
+                  type: integer
+                enabled:
+                  type: boolean
+                api_key_id:
+                  type: string
+      responses:
+        '200':
+          description: Job updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Delete Job
+      description: Deletes a job and cascades to delete all associated triggers.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Job deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/jobs/{id}/trigger:
+    post:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Trigger Job
+      description: |
+        Manually triggers a job execution.
+        Returns 202 Accepted with a run_id for polling via GET /api/jobs/{id}/runs/{runId}.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Job triggered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  run_id:
+                    type: string
+                    description: The run ID to poll for completion
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/jobs/{id}/runs:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: List Job Runs
+      description: Returns paginated run history for a job.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+      responses:
+        '200':
+          description: Paginated list of runs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/JobRun'
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  per_page:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/jobs/{id}/runs/{runId}:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Get Job Run
+      description: |
+        Returns a single run detail.
+        Designed as a polling endpoint — poll this after receiving a run_id from a trigger or webhook response.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Run details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobRun'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/jobs/{id}/triggers:
+    get:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: List Triggers
+      description: Returns all triggers for a job.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of triggers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TriggerResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Create Trigger
+      description: |
+        Creates a new trigger for a job.
+        For webhook triggers, the raw token (wht_ prefix) is returned in the response on creation.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - kind
+                - config
+              properties:
+                kind:
+                  $ref: '#/components/schemas/TriggerKind'
+                config:
+                  $ref: '#/components/schemas/TriggerConfig'
+      responses:
+        '201':
+          description: Trigger created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TriggerResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/triggers/{id}:
+    delete:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Delete Trigger
+      description: Deletes a single trigger by ID.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Trigger deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /webhooks/{token}:
+    post:
+      tags: [Admin]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Webhook Entry
+      description: |
+        External unauthenticated endpoint for receiving webhook events.
+        HMAC verification is performed using SHA-256.
+        Returns 202 Accepted with run_id on success, or 401 on HMAC failure.
+      requestBody:
+        required: true
+        content:
+          '*/*':
+            schema:
+              type: string
+              description: Raw webhook payload
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+            description: Webhook token (wht_ prefix)
+      responses:
+        '202':
+          description: Webhook accepted — polling endpoint (use run_id with GET /api/jobs/{id}/runs/{runId})
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  run_id:
+                    type: string
+                    description: The run ID to poll for completion
+        '401':
+          description: HMAC verification failed or trigger not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: Trigger not found or verification failed
+                      type:
+                        type: string
+                        example: verification_failed
+
+  /api/webhooks/{token}:
+    post:
+      tags: [Dashboard]
+      servers:
+        - url: http://127.0.0.1:9191
+      summary: Webhook Entry
+      description: |
+        External unauthenticated endpoint for receiving webhook events.
+        HMAC verification is performed using SHA-256.
+        Returns 202 Accepted with run_id on success, or 401 on HMAC failure.
+      requestBody:
+        required: true
+        content:
+          '*/*':
+            schema:
+              type: string
+              description: Raw webhook payload
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+            description: Webhook token (wht_ prefix)
+      responses:
+        '202':
+          description: Webhook accepted — polling endpoint (use run_id with GET /api/jobs/{id}/runs/{runId})
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  run_id:
+                    type: string
+                    description: The run ID to poll for completion
+        '401':
+          description: HMAC verification failed or trigger not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: Trigger not found or verification failed
+                      type:
+                        type: string
+                        example: verification_failed
+
+
+  # ---------------------------------------------------------------------------
+  # OAuth 2.0 — MCP Auth endpoints (RFC 8414, RFC 8707, RFC 7591, PKCE)
+  # ---------------------------------------------------------------------------
+
+  /.well-known/oauth-protected-resource:
+    get:
+      tags: [OAuth 2.0]
+      servers:
+        - url: http://127.0.0.1:8181
+      summary: OAuth Protected Resource Metadata (RFC 8707)
+      description: Returns metadata about the protected resource, used by MCP HTTP clients to discover bearer token requirements.
+      responses:
+        '200':
+          description: Protected resource metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resource:
+                    type: string
+                    description: The URL of the protected resource
+                    example: http://127.0.0.1:8181
+                  authorization_servers:
+                    type: array
+                    items:
+                      type: string
+                    description: List of authorization server URLs
+                    example: ["http://127.0.0.1:8181"]
+                  bearer_methods_supported:
+                    type: array
+                    items:
+                      type: string
+                    description: Supported bearer token methods
+                    example: ["header"]
+                  resource_documentation:
+                    type: string
+                    description: Link to API documentation
+                    example: http://127.0.0.1:8181/docs
+
+  /.well-known/oauth-authorization-server:
+    get:
+      tags: [OAuth 2.0]
+      servers:
+        - url: http://127.0.0.1:8181
+      summary: OAuth Authorization Server Metadata (RFC 8414)
+      description: Returns authorization server metadata, used by MCP HTTP clients to discover OAuth endpoints.
+      responses:
+        '200':
+          description: Authorization server metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  issuer:
+                    type: string
+                    description: The authorization server's issuer identifier
+                    example: http://127.0.0.1:8181
+                  authorization_endpoint:
+                    type: string
+                    description: URL of the authorization endpoint
+                    example: http://127.0.0.1:8181/authorize
+                  token_endpoint:
+                    type: string
+                    description: URL of the token endpoint
+                    example: http://127.0.0.1:8181/token
+                  registration_endpoint:
+                    type: string
+                    description: URL of the dynamic client registration endpoint
+                    example: http://127.0.0.1:8181/register
+                  response_types_supported:
+                    type: array
+                    items:
+                      type: string
+                    description: Supported OAuth response types
+                    example: ["code"]
+                  grant_types_supported:
+                    type: array
+                    items:
+                      type: string
+                    description: Supported OAuth grant types
+                    example: ["authorization_code"]
+                  code_challenge_methods_supported:
+                    type: array
+                    items:
+                      type: string
+                    description: Supported PKCE code challenge methods
+                    example: ["S256"]
+                  token_endpoint_auth_methods_supported:
+                    type: array
+                    items:
+                      type: string
+                    description: Supported token endpoint authentication methods
+                    example: ["none"]
+                  scopes_supported:
+                    type: array
+                    items:
+                      type: string
+                    description: Supported OAuth scopes
+                    example: ["mcp"]
+
+  /authorize:
+    get:
+      tags: [OAuth 2.0]
+      servers:
+        - url: http://127.0.0.1:8181
+      summary: OAuth Authorization Page (redirect)
+      description: |
+        OAuth authorization endpoint. Validates PKCE parameters then redirects the
+        browser to the dashboard consent page. This is step 4 of the MCP HTTP auth
+        flow — the MCP client opens this URL in the user's browser.
+      parameters:
+        - name: response_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [code]
+          description: Must be "code"
+        - name: client_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Client identifier
+        - name: redirect_uri
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Redirect URI (must be a loopback address, localhost, or vscode://)
+          example: http://127.0.0.1:34567
+        - name: code_challenge_method
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [S256]
+          description: PKCE code challenge method (only S256 supported)
+        - name: code_challenge
+          in: query
+          required: true
+          schema:
+            type: string
+          description: PKCE code challenge (SHA-256 hash of code verifier, base64url-encoded)
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Opaque state value for CSRF protection (recommended)
+      responses:
+        '302':
+          description: Redirect to the dashboard consent page
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL of the dashboard /authorize page with authorization params
+        '400':
+          $ref: '#/components/responses/OAuthError'
+        '405':
+          $ref: '#/components/responses/OAuthError'
+
+    post:
+      tags: [OAuth 2.0]
+      servers:
+        - url: http://127.0.0.1:8181
+      summary: OAuth Authorization Consent
+      description: |
+        Called by the dashboard UI after user consent. Issues an opaque
+        authorization code bound to an API key. Returns a redirect_uri so
+        the dashboard JS can redirect the browser to the MCP client.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - request_id
+                - action
+              properties:
+                request_id:
+                  type: string
+                  description: Pending authorization request ID (from the GET redirect)
+                action:
+                  type: string
+                  enum: [create_new, use_existing]
+                  description: Whether to create a new API key or use an existing one
+                api_key:
+                  type: string
+                  description: Existing API key (required when action=use_existing)
+      responses:
+        '200':
+          description: Authorization code issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  redirect_uri:
+                    type: string
+                    description: Full redirect URI including code and state query params
+                  code:
+                    type: string
+                    description: Opaque single-use authorization code
+                  state:
+                    type: string
+                    description: State value echoed back for CSRF verification
+        '400':
+          $ref: '#/components/responses/OAuthError'
+        '405':
+          $ref: '#/components/responses/OAuthError'
+
+  /token:
+    post:
+      tags: [OAuth 2.0]
+      servers:
+        - url: http://127.0.0.1:8181
+      summary: OAuth Token Exchange (PKCE)
+      description: |
+        Exchanges an opaque authorization code for an access token (API key).
+        Uses PKCE code verifier for proof-of-possession verification.
+        Accepts both application/json and application/x-www-form-urlencoded.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+                - grant_type
+              properties:
+                code:
+                  type: string
+                  description: The authorization code from /authorize
+                grant_type:
+                  type: string
+                  enum: [authorization_code]
+                  description: Must be "authorization_code"
+                code_verifier:
+                  type: string
+                  description: PKCE code verifier (plaintext secret)
+                redirect_uri:
+                  type: string
+                  description: Redirect URI for validation (must match the one used in /authorize)
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                  description: The authorization code
+                grant_type:
+                  type: string
+                  enum: [authorization_code]
+                  description: Must be "authorization_code"
+                code_verifier:
+                  type: string
+                  description: PKCE code verifier
+                redirect_uri:
+                  type: string
+                  description: Redirect URI for validation
+      responses:
+        '200':
+          description: Token exchange successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    description: The API key (Bearer token) for subsequent requests
+                  token_type:
+                    type: string
+                    enum: [bearer]
+                    example: bearer
+                  scope:
+                    type: string
+                    description: Granted scope
+                    example: mcp
+                  redirect_uri:
+                    type: string
+                    description: Echoed redirect URI
+                  state:
+                    type: string
+                    description: Echoed state value
+        '400':
+          $ref: '#/components/responses/OAuthError'
+        '405':
+          $ref: '#/components/responses/OAuthError'
+
+  /register:
+    get:
+      tags: [OAuth 2.0]
+      servers:
+        - url: http://127.0.0.1:8181
+      summary: OAuth Dynamic Client Registration (read — not implemented)
+      description: GET is not supported. Use POST for dynamic client registration.
+      responses:
+        '405':
+          $ref: '#/components/responses/OAuthError'
+
+    post:
+      tags: [OAuth 2.0]
+      servers:
+        - url: http://127.0.0.1:8181
+      summary: OAuth Dynamic Client Registration (RFC 7591)
+      description: Self-registers an MCP client. Accepts any body or no body — returns a fixed client configuration. Used by VSCode and other MCP HTTP clients.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Optional client metadata (currently ignored)
+      responses:
+        '201':
+          description: Client registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  client_id:
+                    type: string
+                    description: The registered client identifier
+                    example: ilter-mcp-client
+                  client_secret_expires_at:
+                    type: integer
+                    description: Expiration timestamp (0 = never expires)
+                    example: 0
+                  grant_types:
+                    type: array
+                    items:
+                      type: string
+                    description: Allowed grant types
+                    example: ["authorization_code"]
+                  response_types:
+                    type: array
+                    items:
+                      type: string
+                    description: Allowed response types
+                    example: ["code"]
+                  token_endpoint_auth_method:
+                    type: string
+                    description: Token endpoint authentication method
+                    example: none
+        '400':
+          $ref: '#/components/responses/OAuthError'
+        '405':
+          $ref: '#/components/responses/OAuthError'
+
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  schemas:
+    APIKey:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        scopes:
+          type: string
+        budget:
+          type: number
+        rate_limit:
+          type: integer
+        created_at:
+          type: string
+    TriggerKind:
+      type: string
+      enum: [cron, webhook, http]
+      description: Type of trigger
+    TriggerConfig:
+      type: object
+      description: Kind-specific trigger configuration as JSON
+      properties:
+        expr:
+          type: string
+          description: Cron expression (e.g., "0 */6 * * *")
+          example: 0 */6 * * *
+        timezone:
+          type: string
+          default: UTC
+          description: Timezone for cron scheduling
+        auth:
+          type: string
+          description: Authentication type for HTTP triggers
+        provider:
+          type: string
+          default: generic
+          description: Webhook provider name
+    TriggerResponse:
+      type: object
+      description: API response shape for a trigger
+      properties:
+        id:
+          type: string
+        kind:
+          $ref: '#/components/schemas/TriggerKind'
+        enabled:
+          type: boolean
+        config:
+          $ref: '#/components/schemas/TriggerConfig'
+        token:
+          type: string
+          description: Raw webhook token (only returned on create)
+        created_at:
+          type: string
+          format: date-time
+    Job:
+      type: object
+      description: A job definition
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        steps:
+          type: string
+          description: JSON array of Step objects
+        variables_config:
+          type: string
+          description: JSON object mapping variable names to sources
+        delivery_config:
+          type: string
+          description: JSON DeliveryConfig object
+        timeout_ms:
+          type: integer
+        enabled:
+          type: boolean
+        api_key_id:
+          type: string
+        triggers:
+          type: array
+          items:
+            $ref: '#/components/schemas/TriggerResponse'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    JobRun:
+      type: object
+      description: A single execution of a job
+      properties:
+        id:
+          type: string
+        job_id:
+          type: string
+        trigger_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, success, failed, interrupted, llm_failed, llm_success, delivery_failed, skipped_locked, dead_letter]
+        attempts:
+          type: integer
+          description: Number of execution attempts so far
+        last_error:
+          type: string
+          nullable: true
+          description: Error message from the most recent failed attempt
+        next_retry_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Scheduled time for the next retry attempt
+        llm_result:
+          type: string
+          nullable: true
+        llm_error:
+          type: string
+          nullable: true
+        delivery_result:
+          type: string
+          nullable: true
+        delivery_error:
+          type: string
+          nullable: true
+        prompt_tokens:
+          type: integer
+        completion_tokens:
+          type: integer
+        cost:
+          type: number
+          format: double
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        duration_ms:
+          type: integer
+        request_body:
+          type: string
+          nullable: true
+        execution_key:
+          type: string
+          nullable: true
+    JobStats:
+      type: object
+      description: Aggregate job statistics
+      properties:
+        jobs:
+          type: object
+          properties:
+            total:
+              type: integer
+            enabled:
+              type: integer
+        executions:
+          type: object
+          properties:
+            total:
+              type: integer
+            errors:
+              type: integer
+        recent:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobRun'
+  responses:
+    Unauthorized:
+      description: Authentication failed or token missing
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+    BadRequest:
+      description: Malformed request payload
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+    PIIBlocked:
+      description: Request blocked due to PII detection
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  pii_type:
+                    type: string
+                    description: Type of PII detected (e.g., 'ssn', 'email', 'credit_card', 'tckn')
+                  mode:
+                    type: string
+                    description: The PII mode that triggered the block
+                    example: block
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  type:
+                    type: string
+                    example: model_not_found
+                  code:
+                    type: string
+                    example: "404"
+    RateLimitExceeded:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  type:
+                    type: string
+                    example: rate_limit_exceeded
+                  code:
+                    type: string
+                    example: "429"
+    ProviderError:
+      description: All upstream providers failed
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  type:
+                    type: string
+                    example: provider_error
+                  code:
+                    type: string
+                    example: "502"
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  type:
+                    type: string
+                    example: internal_error
+                  code:
+                    type: string
+                    example: "500"
+    OAuthError:
+      description: OAuth error response (RFC 6749 Section 5.2)
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                description: OAuth error code
+                example: invalid_request
+              error_description:
+                type: string
+                description: Human-readable error description
+                example: client_id is required

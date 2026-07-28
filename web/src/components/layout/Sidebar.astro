@@ -1,0 +1,449 @@
+---
+export interface SidebarLink {
+  href: string;
+  matchPath?: string;
+  label: string;
+  icon: string;
+  disabled?: boolean;
+}
+
+import { ICONS } from '../ui/sidebar-icons';
+
+export interface SidebarSection {
+  groupLabel: string;
+  items: SidebarLink[];
+  collapsible?: boolean;
+}
+
+const sections: SidebarSection[] = [
+  {
+    groupLabel: '',
+    items: [
+      { href: '/overview', label: 'Overview',   icon: 'layout-dashboard' },
+      { href: '/chat',     label: 'Chat',       icon: 'message-square' },
+      { href: '/mcp/servers', matchPath: '/mcp', label: 'MCP', icon: 'server' },
+      { href: '/features/budget', matchPath: '/features', label: 'Features', icon: 'gauge' },
+      { href: '/access/keys', matchPath: '/access', label: 'Identity', icon: 'shield-check' },
+      { href: '/logs/requests', matchPath: '/logs', label: 'Logs', icon: 'scroll-text' },
+      { href: '/llm/providers', matchPath: '/llm', label: 'LLM', icon: 'cpu' },
+      { href: '/jobs', label: 'Jobs', icon: 'timer' },
+      { href: '/openapi/specs', matchPath: '/openapi', label: 'OpenAPI', icon: 'braces' },
+    ],
+  },
+];
+
+const currentPath = Astro.url.pathname;
+---
+
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <a href="/overview" class="logo">
+      <span class="logo-icon">I</span>
+      <span class="logo-text">ILTER</span>
+    </a>
+    <button type="button" class="sidebar-toggle-btn" id="sidebarToggleBtn" aria-label="Toggle sidebar">
+      <!-- visible when sidebar open — shows collapse arrow (pointing left) -->
+      <svg class="toggle-icon-open" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="18" height="18" x="3" y="3" rx="2"/>
+        <path d="M9 3v18"/>
+        <path d="m16 15-3-3 3-3"/>
+      </svg>
+      <!-- visible when sidebar collapsed — shows expand arrow (pointing right) -->
+      <svg class="toggle-icon-closed" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="18" height="18" x="3" y="3" rx="2"/>
+        <path d="M9 3v18"/>
+        <path d="m14 9 3 3-3 3"/>
+      </svg>
+    </button>
+  </div>
+
+  <nav class="sidebar-nav">
+    {
+      sections.map((section) => (
+        <div class="sidebar-section" data-collapsible={section.collapsible ? 'true' : undefined}>
+          {section.groupLabel && section.items.length > 1 && (
+            <div class="sidebar-section-label" data-toggle>
+              {section.collapsible && <span class="collapse-arrow">▾</span>}
+              {section.groupLabel}
+            </div>
+          )}
+          <ul>
+            {
+              section.items.map((link) => (
+                <li>
+                  {
+                    link.disabled ? (
+                      <span class="nav-link nav-link-disabled">
+                        <span class="nav-icon" set:html={ICONS[link.icon] || ''} />
+                        <span class="nav-label">{link.label}</span>
+                      </span>
+                    ) : (
+                      <a
+                        href={link.href}
+                        class:list={{
+                          'nav-link': true,
+                          active: currentPath === link.href || currentPath.startsWith((link.matchPath || link.href) + '/'),
+                        }}
+                      >
+                        <span class="nav-icon" set:html={ICONS[link.icon] || ''} />
+                        <span class="nav-label">{link.label}</span>
+                      </a>
+                    )
+                  }
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      ))
+    }
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="version-badge">v0.1.0</div>
+    <a href="/login" class="logout-btn" id="logoutBtn" aria-label="Logout" onclick="try{sessionStorage.removeItem('ilter_admin_token')}catch(e){}">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+      </svg>
+      <span class="logout-label">Logout</span>
+    </a>
+  </div>
+</aside>
+
+<script>
+  document.querySelectorAll('[data-collapsible]').forEach((section) => {
+    const label = section.querySelector('[data-toggle]');
+    const ul = section.querySelector('ul');
+    if (!label || !ul) return;
+    const key = 'sidebar-collapsed-' + label.textContent.trim();
+    if (localStorage.getItem(key) === 'true') {
+      ul.style.display = 'none';
+      label.classList.add('collapsed');
+    }
+    label.addEventListener('click', () => {
+      const isCollapsed = ul.style.display === 'none';
+      ul.style.display = isCollapsed ? '' : 'none';
+      label.classList.toggle('collapsed', !isCollapsed);
+      localStorage.setItem(key, String(!isCollapsed));
+    });
+  });
+</script>
+
+<script>
+  // Sidebar collapse toggle + restore
+  (() => {
+    if (localStorage.getItem('sidebar-collapsed') === 'true') {
+      document.documentElement.classList.add('sidebar-collapsed');
+      document.body.classList.add('sidebar-collapsed');
+    }
+
+    const toggleBtn = document.getElementById('sidebarToggleBtn');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        const on = document.documentElement.classList.toggle('sidebar-collapsed');
+        document.body.classList.toggle('sidebar-collapsed', on);
+        localStorage.setItem('sidebar-collapsed', String(on));
+      });
+    }
+  })();
+</script>
+
+<style>
+  .sidebar {
+    width: var(--sidebar-width);
+    height: 100vh;
+    background: var(--sidebar-bg);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 40;
+    overflow-y: auto;
+    transition: width 0.25s ease;
+  }
+
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 1rem 1.25rem 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-decoration: none;
+  }
+
+  .logo-icon {
+    width: 2rem;
+    height: 2rem;
+    background: linear-gradient(135deg, var(--color-brand-500), var(--color-brand-700));
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 800;
+    font-size: 0.875rem;
+    font-family: var(--font-family-mono);
+  }
+
+  .logo-text {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: white;
+    letter-spacing: 0.05em;
+  }
+
+  .sidebar-nav {
+    flex: 1;
+    padding: 0.75rem;
+  }
+
+  .sidebar-section {
+    margin-bottom: 0.5rem;
+  }
+
+  .sidebar-section:last-child {
+    margin-bottom: 0;
+  }
+
+  .sidebar-section-label[data-toggle] {
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .sidebar-section-label[data-toggle]:hover {
+    color: var(--sidebar-text-active);
+  }
+  .collapse-arrow {
+    display: inline-block;
+    transition: transform 0.2s ease;
+    font-size: 0.625rem;
+  }
+  .collapsed .collapse-arrow {
+    transform: rotate(-90deg);
+  }
+  .sidebar-section-label {
+    padding: 0.5rem 0.75rem 0.25rem;
+    font-size: 0.675rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.075em;
+    color: var(--color-surface-400);
+  }
+
+  .sidebar-section ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .sidebar-section + .sidebar-section {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 0.25rem;
+  }
+
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    border-radius: var(--radius-md);
+    color: var(--sidebar-text);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.15s ease;
+  }
+
+  .nav-link:hover {
+    background: var(--sidebar-hover);
+    color: var(--sidebar-text-active);
+  }
+
+  .nav-link.active {
+    background: var(--color-brand-600);
+    color: white;
+  }
+
+  .nav-link-disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  .nav-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+
+  .nav-link.active .nav-icon {
+    opacity: 1;
+  }
+
+  .nav-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sidebar-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .version-badge {
+    font-size: 0.75rem;
+    color: var(--color-surface-500);
+    font-family: var(--font-family-mono);
+  }
+
+  /* ── Sidebar toggle button ── */
+  .sidebar-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--sidebar-text);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .toggle-icon-closed {
+    display: none;
+  }
+
+  :global(.sidebar-collapsed) .toggle-icon-open {
+    display: none;
+  }
+
+  :global(.sidebar-collapsed) .toggle-icon-closed {
+    display: inline;
+  }
+
+  /* ── Logout button ── */
+  .logout-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.5rem;
+    border-radius: var(--radius-md);
+    color: var(--sidebar-text);
+    text-decoration: none;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+
+  .logout-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-error);
+  }
+
+  .logout-btn svg {
+    flex-shrink: 0;
+  }
+
+  /* ── Collapsed state ── */
+  :global(.sidebar-collapsed) .sidebar {
+    width: var(--sidebar-width-collapsed);
+    overflow: visible;
+  }
+
+  :global(.sidebar-collapsed) .sidebar-header {
+    padding: 1.25rem 0.5rem;
+    display: flex;
+    justify-content: center;
+    position: relative;
+  }
+
+  :global(.sidebar-collapsed) .sidebar-toggle-btn {
+    position: absolute;
+    right: -1.25rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--sidebar-bg);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    width: 2.25rem;
+    height: 2.25rem;
+    z-index: 5;
+  }
+
+
+
+
+  /* logo container stays visible — only text hidden */
+  :global(.sidebar-collapsed) .logo-text {
+    display: none;
+  }
+
+  :global(.sidebar-collapsed) .sidebar-nav {
+    padding: 0.75rem 0.5rem;
+  }
+
+  :global(.sidebar-collapsed) .sidebar-section-label {
+    display: none;
+  }
+
+  :global(.sidebar-collapsed) .nav-label {
+    display: none;
+  }
+
+  :global(.sidebar-collapsed) .nav-link {
+    justify-content: center;
+    padding: 0.625rem;
+  }
+
+  :global(.sidebar-collapsed) .nav-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  :global(.sidebar-collapsed) .sidebar-footer {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 0.5rem;
+  }
+
+  :global(.sidebar-collapsed) .version-badge {
+    font-size: 0.625rem;
+  }
+
+  :global(.sidebar-collapsed) .logout-label {
+    display: none;
+  }
+
+  :global(.sidebar-collapsed) .logout-btn {
+    justify-content: center;
+    padding: 0.5rem;
+  }
+
+
+</style>

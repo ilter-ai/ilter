@@ -1,0 +1,483 @@
+package triggers
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"log/slog"
+	"os"
+	"testing"
+	"time"
+
+	_ "modernc.org/sqlite"
+)
+
+// setupDispatcherTestDB creates an in-memory SQLite database with the
+// job_activations table and returns a Store + cleanup function.
+func setupDispatcherTestDB(t *testing.T) (*Store, func()) {
+	t.Helper()
+
+	// _time_format=datetime&_timezone=UTC matches the production DSN
+	// (internal/db/sqlite.go) — required for CleanupOldActivations, which
+	// binds a raw time.Time against a datetime(...) comparison. cache=shared
+	// keeps all pooled connections on the same in-memory DB (plain ":memory:"
+	// would otherwise give each new connection its own empty database).
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared&_time_format=datetime&_timezone=UTC")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	db.SetMaxOpenConns(1)
+
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS job_activations (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			trigger_id TEXT NOT NULL,
+			job_id TEXT NOT NULL,
+			idem_key TEXT NOT NULL,
+			payload BLOB,
+			status TEXT NOT NULL DEFAULT 'pending',
+			run_id TEXT,
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			UNIQUE(trigger_id, idem_key)
+		)
+	`)
+	if err != nil {
+		db.Close()
+		t.Fatalf("create job_activations table: %v", err)
+	}
+
+	// Dispatch checks jobs.enabled before recording an activation, so tests
+	// need a (minimal) jobs table too — see insertTestJob.
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS jobs (
+			id TEXT PRIMARY KEY,
+			enabled INTEGER NOT NULL DEFAULT 1
+		)
+	`)
+	if err != nil {
+		db.Close()
+		t.Fatalf("create jobs table: %v", err)
+	}
+
+	store := NewStore(db)
+	return store, func() {
+		db.Close()
+	}
+}
+
+// insertTestJob inserts an enabled job row so Dispatch's job.enabled check
+// passes for the given job ID.
+func insertTestJob(t *testing.T, db *sql.DB, jobID string) {
+	t.Helper()
+	if _, err := db.Exec(`INSERT INTO jobs (id, enabled) VALUES (?, 1)`, jobID); err != nil {
+		t.Fatalf("insert test job %q: %v", jobID, err)
+	}
+}
+
+func TestNewDispatcher(t *testing.T) {
+	store, cleanup := setupDispatcherTestDB(t)
+	defer cleanup()
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	d := NewDispatcher(store, nil, time.Hour, logger)
+
+	if d.store != store {
+		t.Errorf("NewDispatcher: store not set")
+	}
+	if d.runner != nil {
+		t.Errorf("NewDispatcher: runner should be nil")
+	}
+	if d.idemTTL != time.Hour {
+		t.Errorf("NewDispatcher: idemTTL = %v, want %v", d.idemTTL, time.Hour)
+	}
+	if d.logger != logger {
+		t.Errorf("NewDispatcher: logger not set")
+	}
+}
+
+func TestNewDispatcher_NilLogger(t *testing.T) {
+	store, cleanup := setupDispatcherTestDB(t)
+	defer cleanup()
+
+	d := NewDispatcher(store, nil, time.Hour, nil)
+	if d.logger == nil {
+		t.Error("NewDispatcher with nil logger: should default to slog.Default()")
+	}
+}
+
+func TestDispatch_NewActivation(t *testing.T) {
+	store, cleanup := setupDispatcherTestDB(t)
+	defer cleanup()
+
+	d := NewDispatcher(store, nil, time.Hour, slog.Default())
+	ctx := context.Background()
+	insertTestJob(t, store.DB(), "job_test_1")
+
+	act := Activation{
+		TriggerID:      "tg_test_1",
+		JobID:          "job_test_1",
+		IdempotencyKey: "key_1",
+		Payload:        []byte(`{"hello":"world"}`),
+	}
+
+	// With no runner, Dispatch should fail after recording the activation.
+	_, err := d.Dispatch(ctx, act)
+	if err == nil {
+		t.Fatal("expected error when no runner configured")
+	}
+	if err.Error() != "dispatcher: job runner not configured" {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	// Verify the activation was recorded.
+	var count int
+	err = store.DB().QueryRow(
+		`SELECT COUNT(*) FROM job_activations WHERE trigger_id = ? AND idem_key = ?`,
+		act.TriggerID, act.IdempotencyKey,
+	).Scan(&count)
+	if err != nil {
+		t.Fatalf("query activation count: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("expected 1 activation, got %d", count)
+	}
+}
+
+func TestDispatch_Idempotency(t *testing.T) {
+	store, cleanup := setupDispatcherTestDB(t)
+	defer cleanup()
+
+	d := NewDispatcher(store, nil, time.Hour, slog.Default())
+	ctx := context.Background()
+	insertTestJob(t, store.DB(), "job_test_2")
+
+	act := Activation{
+		TriggerID:      "tg_test_2",
+		JobID:          "job_test_2",
+		IdempotencyKey: "dup_key",
+	}
+
+	// First dispatch: activation recorded, but fails because no runner.
+	_, err := d.Dispatch(ctx, act)
+	if err == nil {
+		t.Fatal("expected error on first dispatch (no runner)")
+	}
+
+	// Second dispatch with same (trigger_id, idem_key): should detect
+	// the duplicate and return the existing activation ID.
+	runID, err := d.Dispatch(ctx, act)
+	if err != nil {
+		t.Fatalf("second dispatch (duplicate) should succeed: %v", err)
+	}
+	if runID == "" {
+		t.Fatal("expected non-empty run ID for duplicate activation")
+	}
+	if len(runID) < 4 || runID[:4] != "act_" {
+		t.Errorf("expected run ID to start with 'act_', got %q", runID)
+	}
+}
+
+func TestDispatch_AutoGeneratedKey(t *testing.T) {
+	store, cleanup := setupDispatcherTestDB(t)
+	defer cleanup()
+
+	d := NewDispatcher(store, nil, time.Hour, slog.Default())
+	ctx := context.Background()
+	insertTestJob(t, store.DB(), "job_test_3")
+
+	act := Activation{
+		TriggerID:      "tg_test_3",
+		JobID:          "job_test_3",
+		IdempotencyKey: "", // empty — dispatcher should generate one
+	}
+
+	_, err := d.Dispatch(ctx, act)
+	if err == nil {
+		t.Fatal("expected error (no runner)")
+	}
+
+	// A second dispatch with empty key should generate a different
+	// auto key, so a second row should exist.
+	_, err = d.Dispatch(ctx, act)
+	if err == nil {
+		t.Fatal("expected error on second dispatch (no runner)")
+	}
+
+	var count int
+	err = store.DB().QueryRow(
+		`SELECT COUNT(*) FROM job_activations WHERE trigger_id = ?`,
+		act.TriggerID,
+	).Scan(&count)
+	if err != nil {
+		t.Fatalf("query count: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("expected 2 activations (auto keys), got %d", count)
+	}
+}
+
+func TestDispatch_EmptyPayload(t *testing.T) {
+	store, cleanup := setupDispatcherTestDB(t)
+	defer cleanup()
+
+	d := NewDispatcher(store, nil, time.Hour, slog.Default())
+	ctx := context.Background()
+	insertTestJob(t, store.DB(), "job_test_4")
+
+	act := Activation{
+		TriggerID:      "tg_test_4",
+		JobID:          "job_test_4",
+		IdempotencyKey: "key_empty_payload",
+		// Payload is nil
+	}
+
+	_, err := d.Dispatch(ctx, act)
+	if err == nil {
+		t.Fatal("expected error (no runner)")
+	}
+
+	var payloadBytes []byte
+	err = store.DB().QueryRow(
+		`SELECT payload FROM job_activations WHERE trigger_id = ? AND idem_key = ?`,
+		act.TriggerID, act.IdempotencyKey,
+	).Scan(&payloadBytes)
+	if err != nil {
+		t.Fatalf("query payload: %v", err)
+	}
+	if payloadBytes != nil {
+		t.Errorf("expected nil payload, got %v", payloadBytes)
+	}
+}
+
+func TestFireFunc(t *testing.T) {
+	store, cleanup := setupDispatcherTestDB(t)
+	defer cleanup()
+
+	d := NewDispatcher(store, nil, time.Hour, slog.Default())
+	ctx := context.Background()
+
+	ff := d.FireFunc()
+	if ff == nil {
+		t.Fatal("FireFunc returned nil")
+	}
+	insertTestJob(t, store.DB(), "job_test_5")
+
+	act := Activation{
+		TriggerID:      "tg_test_5",
+		JobID:          "job_test_5",
+		IdempotencyKey: "firefunc_key",
+	}
+
+	// FireFunc should call Dispatch, which fails with no runner.
+	err := ff(ctx, act)
+	if err == nil {
+		t.Fatal("expected error from FireFunc when no runner configured")
+	}
+	if err.Error() != "dispatcher: job runner not configured" {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestFireFunc_MatchesFireFuncSignature(t *testing.T) {
+	// Compile-time check: FireFunc should satisfy the FireFunc type.
+	store, cleanup := setupDispatcherTestDB(t)
+	defer cleanup()
+
+	d := NewDispatcher(store, nil, time.Hour, slog.Default())
+
+	ff := d.FireFunc()
+	_ = ff
+}
+
+func TestHandleActivation(t *testing.T) {
+	store, cleanup := setupDispatcherTestDB(t)
+	defer cleanup()
+
+	d := NewDispatcher(store, nil, time.Hour, slog.Default())
+	ctx := context.Background()
+	insertTestJob(t, store.DB(), "job_test_6")
+
+	act := Activation{
+		TriggerID:      "tg_test_6",
+		JobID:          "job_test_6",
+		IdempotencyKey: "handle_key",
+	}
+
+	// HandleActivation wraps Dispatch, returns (runID, error).
+	runID, err := d.HandleActivation(ctx, act)
+	if err == nil {
+		t.Fatal("expected error (no runner)")
+	}
+	if runID != "" {
+		t.Errorf("expected empty runID on error, got %q", runID)
+	}
+
+	// First dispatch fails, second should be duplicate.
+	runID, err = d.HandleActivation(ctx, act)
+	if err != nil {
+		t.Fatalf("HandleActivation on duplicate should succeed: %v", err)
+	}
+	if runID == "" {
+		t.Fatal("expected non-empty run ID on duplicate")
+	}
+}
+
+func TestCleanupOldActivations(t *testing.T) {
+	store, cleanup := setupDispatcherTestDB(t)
+	defer cleanup()
+
+	d := NewDispatcher(store, nil, time.Hour, slog.Default())
+	ctx := context.Background()
+	insertTestJob(t, store.DB(), "job_cleanup")
+
+	act := Activation{
+		TriggerID:      "tg_cleanup",
+		JobID:          "job_cleanup",
+		IdempotencyKey: "cleanup_key",
+	}
+
+	// Record an activation.
+	_, err := d.Dispatch(ctx, act)
+	if err == nil {
+		t.Fatal("expected error (no runner)")
+	}
+
+	// Verify it exists.
+	var before int
+	err = store.DB().QueryRow(`SELECT COUNT(*) FROM job_activations`).Scan(&before)
+	if err != nil {
+		t.Fatalf("query before cleanup: %v", err)
+	}
+	if before != 1 {
+		t.Errorf("expected 1 activation before cleanup, got %d", before)
+	}
+
+	// Backdate created_at well past the TTL instead of sleeping: SQLite's
+	// datetime('now') only has second-level precision, so a short real-time
+	// sleep would be flaky whenever created_at and the cleanup cutoff round
+	// to the same second.
+	if _, execErr := store.DB().Exec(`UPDATE job_activations SET created_at = datetime('now', '-2 hours')`); execErr != nil {
+		t.Fatalf("backdate created_at: %v", execErr)
+	}
+
+	// Cleanup should delete it.
+	err = d.CleanupOldActivations(ctx)
+	if err != nil {
+		t.Fatalf("CleanupOldActivations: %v", err)
+	}
+
+	var after int
+	err = store.DB().QueryRow(`SELECT COUNT(*) FROM job_activations`).Scan(&after)
+	if err != nil {
+		t.Fatalf("query after cleanup: %v", err)
+	}
+	if after != 0 {
+		t.Errorf("expected 0 activations after cleanup, got %d", after)
+	}
+}
+
+func TestCleanupOldActivations_ZeroTTL(t *testing.T) {
+	store, cleanup := setupDispatcherTestDB(t)
+	defer cleanup()
+
+	// Zero TTL should use default (24h), so no rows are deleted.
+	d := NewDispatcher(store, nil, 0, slog.Default())
+	ctx := context.Background()
+	insertTestJob(t, store.DB(), "job_cleanup_zero")
+
+	act := Activation{
+		TriggerID:      "tg_cleanup_zero",
+		JobID:          "job_cleanup_zero",
+		IdempotencyKey: "cleanup_zero",
+	}
+
+	_, err := d.Dispatch(ctx, act)
+	if err == nil {
+		t.Fatal("expected error (no runner)")
+	}
+
+	err = d.CleanupOldActivations(ctx)
+	if err != nil {
+		t.Fatalf("CleanupOldActivations: %v", err)
+	}
+
+	var count int
+	err = store.DB().QueryRow(`SELECT COUNT(*) FROM job_activations`).Scan(&count)
+	if err != nil {
+		t.Fatalf("query after cleanup: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("expected 1 activation (zero TTL defaults to 24h), got %d", count)
+	}
+}
+
+func TestDispatch_DifferentTriggersSameKey(t *testing.T) {
+	// Two different triggers can have the same idem_key without conflict.
+	store, cleanup := setupDispatcherTestDB(t)
+	defer cleanup()
+
+	d := NewDispatcher(store, nil, time.Hour, slog.Default())
+	ctx := context.Background()
+	insertTestJob(t, store.DB(), "job_1")
+	insertTestJob(t, store.DB(), "job_2")
+
+	act1 := Activation{
+		TriggerID:      "tg_a",
+		JobID:          "job_1",
+		IdempotencyKey: "same_key",
+	}
+	act2 := Activation{
+		TriggerID:      "tg_b",
+		JobID:          "job_2",
+		IdempotencyKey: "same_key",
+	}
+
+	_, err := d.Dispatch(ctx, act1)
+	if err == nil {
+		t.Fatal("expected error (no runner)")
+	}
+	_, err = d.Dispatch(ctx, act2)
+	if err == nil {
+		t.Fatal("expected error (no runner)")
+	}
+
+	var count int
+	err = store.DB().QueryRow(`SELECT COUNT(*) FROM job_activations`).Scan(&count)
+	if err != nil {
+		t.Fatalf("query count: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("expected 2 activations (different triggers), got %d", count)
+	}
+}
+
+func TestDispatch_SameTriggerDifferentKeys(t *testing.T) {
+	// Same trigger with different keys should create separate activations.
+	store, cleanup := setupDispatcherTestDB(t)
+	defer cleanup()
+
+	d := NewDispatcher(store, nil, time.Hour, slog.Default())
+	ctx := context.Background()
+	insertTestJob(t, store.DB(), "job_multi")
+
+	for i := range 3 {
+		act := Activation{
+			TriggerID:      "tg_multi",
+			JobID:          "job_multi",
+			IdempotencyKey: fmt.Sprintf("key_%d", i),
+		}
+		_, err := d.Dispatch(ctx, act)
+		if err == nil {
+			t.Fatal("expected error (no runner)")
+		}
+	}
+
+	var count int
+	err := store.DB().QueryRow(`SELECT COUNT(*) FROM job_activations`).Scan(&count)
+	if err != nil {
+		t.Fatalf("query count: %v", err)
+	}
+	if count != 3 {
+		t.Errorf("expected 3 activations, got %d", count)
+	}
+}

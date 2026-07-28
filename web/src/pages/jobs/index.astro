@@ -1,0 +1,8 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { JobsView } from '../../components/jobs/JobsView';
+---
+
+<Layout title="Jobs">
+  <JobsView client:only="react" />
+</Layout>

@@ -1,0 +1,24 @@
+.git/
+.gitattributes
+.github/
+
+# Docs
+*.md
+
+# Tests
+tests/
+
+# Build tooling
+Makefile
+.dockerignore
+.golangci.yml
+.air.toml
+
+# AI tool artifacts
+.agents/
+.hypothesis/
+.beads/
+
+# Frontend (built fresh in Docker)
+web/node_modules/
+web/.astro/

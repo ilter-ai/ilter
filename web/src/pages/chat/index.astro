@@ -1,0 +1,8 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { ChatView } from '../../components/chat/ChatView';
+---
+
+<Layout title="Chat">
+  <ChatView client:only="react" />
+</Layout>

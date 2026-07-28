@@ -1,0 +1,15 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { AccessManagementView, type Tab } from '../../components/access/AccessManagementView';
+
+export function getStaticPaths() {
+  return ['keys', 'users', 'groups'].map((tab) => ({ params: { tab } }));
+}
+
+const raw = Astro.params.tab;
+const initialTab: Tab = (['keys', 'users', 'groups'] as const).find(t => t === raw) ?? 'keys';
+---
+
+<Layout title="Identity">
+  <AccessManagementView client:only="react" initialTab={initialTab} />
+</Layout>

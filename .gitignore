@@ -1,0 +1,59 @@
+# Binaries
+/ilter
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.bak
+
+# Test artifacts
+*.test
+*.out
+playwright
+
+# Go workspace
+go.work
+
+# Secrets
+.env
+*.secrets.env
+
+# SQLite
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+
+# Data directory
+/data/*
+!data/pii/
+!data/pii/**
+
+# Air hot reload
+/tmp/
+
+# Beads & Dolt
+.dolt/
+.beads-credential-key
+.beads/
+
+# Internal design docs
+thoughts/
+
+# others
+.DS_Store
+.omo
+.claude
+.bv/
+.agents/
+.hypothesis/
+.schemathesis/
+AGENTS.md
+
+# IDE
+.vscode/
+.idea/
+*~

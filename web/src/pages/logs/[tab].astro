@@ -1,0 +1,16 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { LogsView } from '../../components/logs/LogsView';
+
+export function getStaticPaths() {
+  return ['requests', 'mcp', 'openapi', 'admin'].map((tab) => ({ params: { tab } }));
+}
+
+const { tab } = Astro.params;
+const initialTab =
+  tab === 'requests' || tab === 'mcp' || tab === 'openapi' || tab === 'admin' ? tab : 'requests';
+---
+
+<Layout title="Logs">
+  <LogsView client:only="react" initialTab={initialTab} />
+</Layout>

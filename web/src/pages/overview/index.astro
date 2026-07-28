@@ -1,0 +1,8 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { OverviewDashboard } from '../../components/overview/OverviewDashboard';
+---
+
+<Layout title="Overview">
+  <OverviewDashboard client:only="react" />
+</Layout>

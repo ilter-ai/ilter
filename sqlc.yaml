@@ -1,0 +1,20 @@
+version: "2"
+sql:
+  - engine: sqlite
+    schema: "internal/db/migrations/"
+    queries: "internal/db/queries/"
+    gen:
+      go:
+        package: sqlc
+        out: internal/db/sqlc
+        sql_package: database/sql
+        emit_interface: true
+        emit_json_tags: true
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
+        emit_prepared_queries: false
+        overrides:
+          - column: "*.created_at"
+            go_type: "time.Time"
+          - column: "*.updated_at"
+            go_type: "time.Time"

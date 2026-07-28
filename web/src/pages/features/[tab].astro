@@ -1,0 +1,15 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { FeaturesView, FEATURE_TABS, DEFAULT_FEATURE_TAB } from '../../components/settings/FeaturesView';
+
+export function getStaticPaths() {
+  return FEATURE_TABS.map((tab) => ({ params: { tab: tab.key } }));
+}
+
+const { tab } = Astro.params;
+const initialTab = tab ?? DEFAULT_FEATURE_TAB;
+---
+
+<Layout title="Features">
+  <FeaturesView client:only="react" initialTab={initialTab} />
+</Layout>

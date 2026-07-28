@@ -1,0 +1,238 @@
+---
+import '../styles/globals.css';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Authorize MCP Client | ILTER</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="min-h-dvh flex items-center justify-center bg-surface-50 font-sans text-surface-900">
+    <div id="root" class="w-full max-w-md px-4">
+      <div class="bg-white border border-surface-200 rounded-xl shadow-sm p-8">
+        <!-- Header -->
+        <div class="flex justify-center mb-4 text-brand-500">
+          <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+        </div>
+        <h1 class="text-lg font-bold text-center mb-1">Authorize MCP Client</h1>
+        <p class="text-sm text-surface-500 text-center mb-6">This application is requesting access to your ILTER gateway</p>
+
+        <!-- Client Info -->
+        <div id="client-info" class="bg-surface-50 rounded-lg p-3 mb-6 text-xs hidden">
+          <div class="mb-1.5">
+            <div class="font-semibold text-surface-700">Client ID</div>
+            <div id="client-id" class="text-surface-500 font-mono mt-0.5 break-all"></div>
+          </div>
+          <div>
+            <div class="font-semibold text-surface-700">Redirect URI</div>
+            <div id="redirect-uri" class="text-surface-500 font-mono mt-0.5 break-all"></div>
+          </div>
+        </div>
+
+        <div id="loading" class="text-center text-sm text-surface-400 py-8">Loading authorization request...</div>
+        <div id="error-placeholder" class="hidden"></div>
+
+        <!-- Auth Form -->
+        <form id="auth-form" class="hidden">
+          <div class="space-y-2 mb-4">
+            <label class="flex items-center gap-2 p-2.5 border border-surface-200 rounded-lg cursor-pointer text-sm hover:border-brand-400 has-checked:border-brand-500 has-checked:bg-brand-50/50">
+              <input type="radio" name="action" value="create_new" checked class="accent-brand-500" />
+              Create new MCP API key
+            </label>
+            <label class="flex items-center gap-2 p-2.5 border border-surface-200 rounded-lg cursor-pointer text-sm hover:border-brand-400 has-checked:border-brand-500 has-checked:bg-brand-50/50">
+              <input type="radio" name="action" value="use_existing" class="accent-brand-500" />
+              Use existing API key
+            </label>
+          </div>
+
+          <div id="existing-key-field" class="mb-4 hidden">
+            <input
+              id="api-key-input"
+              type="text"
+              placeholder="Paste your ILTER API key..."
+              autocomplete="off"
+              class="w-full px-3 py-2.5 border border-surface-300 rounded-lg text-sm font-mono outline-none focus:border-brand-400 focus:ring-3 focus:ring-brand-500/10 box-border"
+            />
+            <select
+              id="key-select"
+              class="w-full px-3 py-2.5 border border-surface-300 rounded-lg text-sm outline-none focus:border-brand-400 focus:ring-3 focus:ring-brand-500/10 box-border bg-white hidden"
+            >
+              <option value="" disabled selected>Select an API key...</option>
+            </select>
+          </div>
+
+          <p id="error" class="text-sm text-error mb-3 hidden"></p>
+
+          <button
+            type="submit"
+            id="allow-btn"
+            class="w-full py-2.5 px-4 bg-brand-500 text-white rounded-lg text-sm font-semibold cursor-pointer hover:bg-brand-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors mb-2"
+          >
+            Allow
+          </button>
+          <button
+            type="button"
+            id="cancel-btn"
+            class="w-full py-2.5 px-4 bg-transparent text-surface-500 border border-surface-300 rounded-lg text-sm font-semibold cursor-pointer hover:bg-surface-100 transition-colors"
+          >
+            Cancel
+          </button>
+        </form>
+      </div>
+    </div>
+  </body>
+</html>
+
+<script>
+  (() => {
+    const params = new URLSearchParams(window.location.search);
+    const requestID = params.get('request_id');
+    const clientID = params.get('client_id');
+    const redirectURI = params.get('redirect_uri');
+
+    const proxyPort = import.meta.env.PUBLIC_PROXY_PORT || '8181';
+    const proxyURL = `${window.location.protocol}//${window.location.hostname}:${proxyPort}`;
+
+    const loading = document.getElementById('loading')!;
+    const clientInfo = document.getElementById('client-info')!;
+    const clientIdEl = document.getElementById('client-id')!;
+    const redirectUriEl = document.getElementById('redirect-uri')!;
+    const authForm = document.getElementById('auth-form')!;
+    const errorEl = document.getElementById('error')!;
+    const allowBtn = document.getElementById('allow-btn') as HTMLButtonElement;
+    const cancelBtn = document.getElementById('cancel-btn') as HTMLButtonElement;
+    const existingField = document.getElementById('existing-key-field')!;
+    const apiKeyInput = document.getElementById('api-key-input') as HTMLInputElement;
+    const keySelect = document.getElementById('key-select') as HTMLSelectElement;
+    const radios = document.querySelectorAll('input[name="action"]');
+
+    if (!requestID || !clientID || !redirectURI) {
+      loading.classList.add('hidden');
+      showError('Invalid authorization request. Missing required parameters.');
+      return;
+    }
+
+    clientIdEl.textContent = clientID;
+    redirectUriEl.textContent = redirectURI;
+    clientInfo.classList.remove('hidden');
+    loading.classList.add('hidden');
+    authForm.classList.remove('hidden');
+
+    radios.forEach((r) =>
+      r.addEventListener('change', () => {
+        const checked = document.querySelector('input[name="action"]:checked') as HTMLInputElement | null;
+        existingField.classList.toggle('hidden', checked?.value !== 'use_existing');
+      })
+    );
+
+    fetchKeys();
+
+    cancelBtn.addEventListener('click', () => {
+      window.close();
+      document.body.innerHTML = `
+        <div class="min-h-dvh flex items-center justify-center bg-surface-50 font-sans">
+          <div class="bg-white border border-surface-200 rounded-xl shadow-sm p-8 max-w-md text-center">
+            <h1 class="text-lg font-bold mb-2">Authorization Cancelled</h1>
+            <p class="text-sm text-surface-500">You can close this tab.</p>
+          </div>
+        </div>`;
+    });
+
+    authForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorEl.classList.add('hidden');
+
+      const checked = document.querySelector('input[name="action"]:checked') as HTMLInputElement;
+      const action = checked.value;
+      const body: Record<string, string> = { request_id: requestID, action };
+      if (action === 'use_existing') {
+        const selectedKeyId = keySelect.value;
+        if (selectedKeyId) {
+          body.key_id = selectedKeyId;
+        } else {
+          const key = apiKeyInput.value.trim();
+          if (!key) {
+            showError('Please enter your API key.');
+            return;
+          }
+          body.api_key = key;
+        }
+      }
+
+      allowBtn.disabled = true;
+      allowBtn.textContent = 'Authorizing...';
+
+      try {
+        const res = await fetch(`${proxyURL}/authorize`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          window.location.href = data.redirect_uri;
+        } else {
+          const err = await res.json().catch(() => ({}));
+          showError(err.error_description || 'Authorization failed');
+        }
+      } catch {
+        showError(`Connection to proxy failed. Is ilter running on port ${proxyPort}?`);
+      } finally {
+        allowBtn.disabled = false;
+        allowBtn.textContent = 'Allow';
+      }
+    });
+
+    function showError(msg: string) {
+      errorEl.textContent = msg;
+      errorEl.classList.remove('hidden');
+    }
+
+    async function fetchKeys() {
+      try {
+        const res = await fetch('/api/api-keys');
+        if (res.status === 401) {
+          // Not logged in — redirect to login, come back here after auth
+          window.location.href = '/login?redirect=' + encodeURIComponent(window.location.href);
+          return;
+        }
+        if (!res.ok) throw new Error('fetch failed');
+        const data = await res.json();
+        const keys = data.api_keys || data;
+        if (!Array.isArray(keys) || keys.length === 0) throw new Error('no keys');
+        const enabled = keys.filter((k: { enabled: boolean }) => k.enabled);
+        if (enabled.length === 0) throw new Error('no enabled keys');
+        for (const key of enabled) {
+          const opt = document.createElement('option');
+          opt.value = key.id;
+          opt.textContent = key.name;
+          keySelect.appendChild(opt);
+        }
+        apiKeyInput.classList.add('hidden');
+        keySelect.classList.remove('hidden');
+      } catch {
+        // Fallback: text input stays visible, select stays hidden
+      }
+    }
+  })();
+</script>
+
+<style is:global>
+  body {
+    margin: 0;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+</style>
