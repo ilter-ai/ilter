@@ -1,4 +1,11 @@
-# ILTER — AI Gateway
+# <img src="https://avatars.githubusercontent.com/u/290145298?s=60&v=4" width="30" height="30" alt="ILTER logo"> ILTER — AI Gateway
+
+[![Docker Hub](https://img.shields.io/badge/docker-ykocaman%2Filter-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/ykocaman/ilter)
+[![Docker Pulls](https://img.shields.io/docker/pulls/ykocaman/ilter)](https://hub.docker.com/r/ykocaman/ilter)
+[![Docker Image Size](https://img.shields.io/docker/image-size/ykocaman/ilter/latest)](https://hub.docker.com/r/ykocaman/ilter)
+[![GitHub release](https://img.shields.io/github/v/release/ilter-ai/ilter)](https://github.com/ilter-ai/ilter/releases)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/ilter-ai/ilter)](go.mod)
+[![License](https://img.shields.io/badge/license-Apache%202.0%20with%20Commons%20Clause-blue)](LICENSE)
 
 Deploying AI models to production brings critical operational challenges such as unpredictable costs, data privacy risks, and API outages. **ILTER** is an independent gateway that sits between your application and AI providers; transforming your entire AI traffic into a secure, optimized, and fully controlled infrastructure without requiring any architectural changes in your code.
 
@@ -15,6 +22,8 @@ Deploying AI models to production brings critical operational challenges such as
 *   📊 **Dashboard:** Embedded web UI for KPIs, audit logs, API keys, and built-in chat playground — no server.
 
 > All this infrastructure requires no external server, Node.js/Python environment, or complex dependencies. **It comes as a zero-setup, single static executable (binary) ready to run in seconds.**
+
+**[⬇️ Download the latest release](https://github.com/ilter-ai/ilter/releases)**
 
 ```bash
 ./ilter serve
@@ -234,7 +243,7 @@ docker run -d \
   -v $(pwd)/data:/app/data \
   -e ILTER_ADMIN_API_KEY=<your-own-random-secret> \
   -e ILTER_PROVIDER_OPENAI_API_KEY=sk-... \
-  ghcr.io/ilter-ai/ilter:latest
+  ykocaman/ilter:latest
 
 # Full local stack: ILTER + Redis Stack + Ollama
 docker compose up -d
