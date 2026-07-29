@@ -2,7 +2,8 @@
 
 -- name: ListMCPServers :many
 SELECT id, name, description, transport, url, command, args, env,
-       handler, enabled, timeout_ms, max_retries, auth_type, auth_key_env
+       handler, enabled, timeout_ms, max_retries, auth_type, auth_key_env,
+       protocol_version
 FROM mcp_servers;
 
 -- name: ListMCPTools :many

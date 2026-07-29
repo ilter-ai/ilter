@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"sync"
+
+	"github.com/ilter-ai/ilter/internal/features/mcp/protocol"
 )
 
 // TransportClient is the interface that MCP transport implementations must satisfy.
@@ -13,6 +15,13 @@ type TransportClient interface {
 	Close() error
 	IsConnected() bool
 	Tools() []ToolDefinition
+
+	// NegotiatedVersion returns the MCP protocol version this client
+	// negotiated with its downstream server during Start (via
+	// negotiateOutbound), empty if Start hasn't completed yet. Used by
+	// ProcessManager's health check to pick ping vs. an alternative for a
+	// downstream server negotiated at a version that removed ping.
+	NegotiatedVersion() protocol.ID
 }
 
 type clientKey struct {

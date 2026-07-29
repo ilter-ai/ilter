@@ -24,7 +24,7 @@ RUN go mod download
 COPY . .
 COPY --from=web-builder /app/web/dist ./web/dist
 
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -p=1 -ldflags="-s -w" -o ilter ./cmd/ilter/
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -p=1 -ldflags="-s -w -X github.com/ilter-ai/ilter/internal/version.Version=$(cat VERSION)" -o ilter ./cmd/ilter/
 RUN upx --best --lzma ilter
 
 # ---- Distroless runtime ----

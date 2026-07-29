@@ -229,24 +229,40 @@ type McpGrant struct {
 }
 
 type McpServer struct {
-	ID          string          `json:"id"`
-	Name        string          `json:"name"`
-	Description *string         `json:"description"`
-	Transport   string          `json:"transport"`
-	Url         *string         `json:"url"`
-	Command     *string         `json:"command"`
-	Args        *string         `json:"args"`
-	Env         *string         `json:"env"`
-	Handler     *string         `json:"handler"`
-	Enabled     int64           `json:"enabled"`
-	Timeout     *string         `json:"timeout"`
-	TimeoutMs   *int64          `json:"timeout_ms"`
-	MaxRetries  int64           `json:"max_retries"`
-	AuthType    *string         `json:"auth_type"`
-	AuthKeyEnv  *string         `json:"auth_key_env"`
-	Config      json.RawMessage `json:"config"`
-	CreatedAt   time.Time       `json:"created_at"`
-	UpdatedAt   time.Time       `json:"updated_at"`
+	ID              string          `json:"id"`
+	Name            string          `json:"name"`
+	Description     *string         `json:"description"`
+	Transport       string          `json:"transport"`
+	Url             *string         `json:"url"`
+	Command         *string         `json:"command"`
+	Args            *string         `json:"args"`
+	Env             *string         `json:"env"`
+	Handler         *string         `json:"handler"`
+	Enabled         int64           `json:"enabled"`
+	Timeout         *string         `json:"timeout"`
+	TimeoutMs       *int64          `json:"timeout_ms"`
+	MaxRetries      int64           `json:"max_retries"`
+	AuthType        *string         `json:"auth_type"`
+	AuthKeyEnv      *string         `json:"auth_key_env"`
+	Config          json.RawMessage `json:"config"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	ProtocolVersion string          `json:"protocol_version"`
+}
+
+type McpTask struct {
+	ID                   string          `json:"id"`
+	KeyID                *string         `json:"key_id"`
+	ServerID             *string         `json:"server_id"`
+	ToolName             string          `json:"tool_name"`
+	Arguments            json.RawMessage `json:"arguments"`
+	Status               string          `json:"status"`
+	Result               json.RawMessage `json:"result"`
+	InputRequiredPayload json.RawMessage `json:"input_required_payload"`
+	ErrorMessage         *string         `json:"error_message"`
+	CreatedAt            time.Time       `json:"created_at"`
+	UpdatedAt            time.Time       `json:"updated_at"`
+	ExpiresAt            time.Time       `json:"expires_at"`
 }
 
 type McpTool struct {
@@ -276,6 +292,25 @@ type Message struct {
 type ModelConfig struct {
 	Name   string `json:"name"`
 	Active int64  `json:"active"`
+}
+
+type OauthCode struct {
+	ID            string    `json:"id"`
+	ApiKey        string    `json:"api_key"`
+	RedirectUri   string    `json:"redirect_uri"`
+	CodeChallenge string    `json:"code_challenge"`
+	State         string    `json:"state"`
+	ExpiresAt     time.Time `json:"expires_at"`
+	Used          int64     `json:"used"`
+}
+
+type OauthRequest struct {
+	ID            string    `json:"id"`
+	ClientID      string    `json:"client_id"`
+	RedirectUri   string    `json:"redirect_uri"`
+	CodeChallenge string    `json:"code_challenge"`
+	State         string    `json:"state"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type OpenapiSpec struct {
@@ -330,6 +365,17 @@ type Prompt struct {
 	Labels      *string   `json:"labels"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type PromptDeployment struct {
+	ID        int64     `json:"id"`
+	PromptID  int64     `json:"prompt_id"`
+	Version   string    `json:"version"`
+	Label     string    `json:"label"`
+	Weight    int64     `json:"weight"`
+	IsActive  int64     `json:"is_active"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type PromptVersion struct {

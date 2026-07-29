@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/ilter-ai/ilter/internal/config"
 	"github.com/ilter-ai/ilter/internal/features/mcp/inline"
+	"github.com/ilter-ai/ilter/internal/features/mcp/protocol"
 )
 
 func TestNewInlineClient(t *testing.T) {
@@ -78,6 +80,48 @@ func TestInlineClientInitialize(t *testing.T) {
 	}
 	if resp.Result == nil {
 		t.Fatal("expected non-nil result")
+	}
+
+	var result struct {
+		ProtocolVersion string `json:"protocolVersion"`
+	}
+	if err := json.Unmarshal(resp.Result, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	// The client's NegotiatedVersion() defaults to newest (2026-07-28), but
+	// that version removed the `initialize` method entirely — calling it
+	// explicitly gracefully degrades to the newest version that still
+	// defines it (2025-03-26), mirroring gateway.go/hub.go's behavior.
+	if result.ProtocolVersion != string(protocol.V20250326) {
+		t.Errorf("initialize protocolVersion = %q, want %q (graceful degradation from newest)", result.ProtocolVersion, protocol.V20250326)
+	}
+}
+
+func TestInlineClient_NegotiatedVersion_Default(t *testing.T) {
+	serverID := "test-inline-negotiated-default"
+	_ = inline.RegisterTools(serverID, testHandler, nil)
+
+	client, _ := NewInlineClient(&ServerInfo{ID: serverID})
+	if client.NegotiatedVersion() != "" {
+		t.Errorf("NegotiatedVersion() before Start = %q, want empty", client.NegotiatedVersion())
+	}
+	_ = client.Start(context.Background())
+	if client.NegotiatedVersion() != protocol.V20260728 {
+		t.Errorf("NegotiatedVersion() after Start = %q, want newest %q", client.NegotiatedVersion(), protocol.V20260728)
+	}
+}
+
+func TestInlineClient_NegotiatedVersion_ManualPin(t *testing.T) {
+	serverID := "test-inline-negotiated-pinned"
+	_ = inline.RegisterTools(serverID, testHandler, nil)
+
+	client, _ := NewInlineClient(&ServerInfo{
+		ID:     serverID,
+		Config: config.MCPServerConfig{ID: serverID, ProtocolVersion: "2024-11-05"},
+	})
+	_ = client.Start(context.Background())
+	if client.NegotiatedVersion() != protocol.V20241105 {
+		t.Errorf("NegotiatedVersion() = %q, want pinned %q", client.NegotiatedVersion(), protocol.V20241105)
 	}
 }
 

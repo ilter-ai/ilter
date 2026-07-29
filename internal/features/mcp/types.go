@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+
+	"github.com/ilter-ai/ilter/internal/features/mcp/protocol"
 )
 
 // maxToolNameLen is the maximum length of a tool name sent to external APIs
@@ -163,6 +165,17 @@ type RequestContext struct {
 	KeyID     string
 	KeyPrefix string
 	ClientIP  string
+
+	// ProtocolVersion is the negotiated MCP protocol version for this
+	// request. For a stateful (2024-11-05/2025-03-26) session tracked by
+	// GatewayHandler's session map, the transport layer populates this
+	// from the pinned value before calling Dispatch. For a stateless
+	// (2026-07-28) request carrying its own per-request `_meta`, or the
+	// very first request on a not-yet-pinned session, it starts empty and
+	// Gateway.Dispatch resolves/negotiates it itself. On a successful
+	// `initialize` call, Dispatch writes the negotiated result back into
+	// this field so the transport layer can persist it for the session.
+	ProtocolVersion protocol.ID
 }
 
 // NewErrorResponse builds a JSON-RPC error response.

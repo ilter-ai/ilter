@@ -24,6 +24,10 @@ type MCPServerRow struct {
 	MaxRetries  int
 	AuthType    string
 	AuthKeyEnv  string
+	// ProtocolVersion is the outbound MCP protocol version negotiation
+	// pin for this server: "auto" (default) negotiates newest-first with
+	// fallback, or an exact version string forces that version.
+	ProtocolVersion string
 }
 
 // ListMCPServers returns every row in mcp_servers, enabled or not; callers
@@ -37,20 +41,21 @@ func (s *SQLiteStore) ListMCPServers() ([]MCPServerRow, error) {
 	result := make([]MCPServerRow, 0, len(rows))
 	for _, r := range rows {
 		result = append(result, MCPServerRow{
-			ID:          r.ID,
-			Name:        r.Name,
-			Description: strDeref(r.Description),
-			Transport:   r.Transport,
-			URL:         strDeref(r.Url),
-			Command:     strDeref(r.Command),
-			Args:        strDeref(r.Args),
-			Env:         strDeref(r.Env),
-			Handler:     strDeref(r.Handler),
-			Enabled:     r.Enabled != 0,
-			TimeoutMs:   int(int64Deref(r.TimeoutMs)),
-			MaxRetries:  int(r.MaxRetries),
-			AuthType:    strDeref(r.AuthType),
-			AuthKeyEnv:  strDeref(r.AuthKeyEnv),
+			ID:              r.ID,
+			Name:            r.Name,
+			Description:     strDeref(r.Description),
+			Transport:       r.Transport,
+			URL:             strDeref(r.Url),
+			Command:         strDeref(r.Command),
+			Args:            strDeref(r.Args),
+			Env:             strDeref(r.Env),
+			Handler:         strDeref(r.Handler),
+			Enabled:         r.Enabled != 0,
+			TimeoutMs:       int(int64Deref(r.TimeoutMs)),
+			MaxRetries:      int(r.MaxRetries),
+			AuthType:        strDeref(r.AuthType),
+			AuthKeyEnv:      strDeref(r.AuthKeyEnv),
+			ProtocolVersion: r.ProtocolVersion,
 		})
 	}
 	return result, nil

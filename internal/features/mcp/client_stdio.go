@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/ilter-ai/ilter/internal/features/mcp/protocol"
 )
 
 // stdioLog is scoped to stdio transport operations.
@@ -35,7 +37,8 @@ type StdioClient struct {
 	pendingMu sync.RWMutex
 	pending   map[string]chan *JSONRPCResponse
 
-	discoveredTools []ToolDefinition
+	discoveredTools   []ToolDefinition
+	negotiatedVersion protocol.ID
 }
 
 // NewStdioClient creates a server-side stdio client.  The process is spawned
@@ -114,16 +117,24 @@ func (c *StdioClient) Start(ctx context.Context) error {
 	go c.readLoop(childCtx)
 	c.mu.Unlock()
 
-	initID := json.RawMessage(`"init"`)
-	initReq := &JSONRPCRequest{
-		JSONRPC: JSONRPCVersion,
-		ID:      &initID,
-		Method:  "initialize",
-		Params:  json.RawMessage(`{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ilter","version":"0.1.0"}}`),
-	}
 	initCtx, initCancel := context.WithTimeout(childCtx, 5*time.Second)
 	defer initCancel()
-	_, err = c.Call(initCtx, initReq)
+
+	rawCall := func(ctx context.Context, method string, params json.RawMessage) (*JSONRPCResponse, error) {
+		id := json.RawMessage(`"handshake"`)
+		return c.Call(ctx, &JSONRPCRequest{JSONRPC: JSONRPCVersion, ID: &id, Method: method, Params: params})
+	}
+	sendNotification := func(method string, params json.RawMessage) {
+		body, _ := json.Marshal(&JSONRPCRequest{JSONRPC: JSONRPCVersion, Method: method, Params: params})
+		c.mu.Lock()
+		if c.stdin != nil {
+			_, _ = c.stdin.Write(body)
+			_, _ = c.stdin.Write([]byte("\n"))
+		}
+		c.mu.Unlock()
+	}
+
+	version, err := negotiateOutbound(initCtx, c.server, rawCall, sendNotification)
 	if err != nil {
 		c.mu.Lock()
 		if c.stdin != nil {
@@ -137,20 +148,12 @@ func (c *StdioClient) Start(ctx context.Context) error {
 			stdioLog.Warn("initialize failed, stderr output",
 				"server_id", c.server.ID, "command", cfg.Command, "stderr", stderrStr)
 		}
-		return fmt.Errorf("mcp initialize: %w (stderr: %s)", err, stderrStr)
+		return fmt.Errorf("mcp handshake: %w (stderr: %s)", err, stderrStr)
 	}
-
-	initializedNotification := &JSONRPCRequest{
-		JSONRPC: JSONRPCVersion,
-		Method:  "notifications/initialized",
-	}
-	notificationBody, _ := json.Marshal(initializedNotification)
 	c.mu.Lock()
-	if c.stdin != nil {
-		_, _ = c.stdin.Write(notificationBody)
-		_, _ = c.stdin.Write([]byte("\n"))
-	}
+	c.negotiatedVersion = version.ID()
 	c.mu.Unlock()
+	stdioLog.Debug("negotiated protocol version", "server_id", c.server.ID, "version", version.ID())
 
 	discovered, discErr := c.discoverTools(initCtx)
 	if discErr != nil {
@@ -283,6 +286,14 @@ func (c *StdioClient) IsConnected() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.connected
+}
+
+// NegotiatedVersion returns the MCP protocol version negotiated with this
+// downstream server during Start, or "" if Start hasn't completed yet.
+func (c *StdioClient) NegotiatedVersion() protocol.ID {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.negotiatedVersion
 }
 
 // Stderr returns any output the child process wrote to stderr.

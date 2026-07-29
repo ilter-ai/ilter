@@ -11,6 +11,7 @@ import (
 	"github.com/sony/gobreaker/v2"
 
 	"github.com/ilter-ai/ilter/internal/config"
+	"github.com/ilter-ai/ilter/internal/features/mcp/protocol"
 )
 
 // mockTransport implements TransportClient for executor tests.
@@ -21,10 +22,11 @@ type mockTransportForExecutor struct {
 	failCount int // number of times Call should fail before succeeding
 }
 
-func (m *mockTransportForExecutor) Start(_ context.Context) error { return nil }
-func (m *mockTransportForExecutor) Close() error                  { return nil }
-func (m *mockTransportForExecutor) IsConnected() bool             { return m.connected }
-func (m *mockTransportForExecutor) Tools() []ToolDefinition       { return nil }
+func (m *mockTransportForExecutor) Start(_ context.Context) error  { return nil }
+func (m *mockTransportForExecutor) Close() error                   { return nil }
+func (m *mockTransportForExecutor) IsConnected() bool              { return m.connected }
+func (m *mockTransportForExecutor) Tools() []ToolDefinition        { return nil }
+func (m *mockTransportForExecutor) NegotiatedVersion() protocol.ID { return protocol.V20250326 }
 
 func (m *mockTransportForExecutor) Call(_ context.Context, req *JSONRPCRequest) (*JSONRPCResponse, error) {
 	m.callCount.Add(1)

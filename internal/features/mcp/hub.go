@@ -3,12 +3,13 @@ package mcp
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"strings"
 	"time"
 
 	"github.com/ilter-ai/ilter/internal/config"
 	"github.com/ilter-ai/ilter/internal/db"
+	"github.com/ilter-ai/ilter/internal/features/mcp/protocol"
 )
 
 const hubToolSep = "__"
@@ -61,19 +62,61 @@ func (hub *Hub) Dispatch(req *JSONRPCRequest, session *Session) *JSONRPCResponse
 
 	var resp *JSONRPCResponse
 
-	switch req.Method {
-	case MethodInitialize:
+	// server/discover is version-agnostic by definition — a client calling
+	// it hasn't picked a version yet — so it is answered before any
+	// per-session Version resolution.
+	if req.Method == protocol.MethodServerDiscover {
+		resultJSON, err := protocol.MarshalDiscoverResult(protocol.ImplementationInfo{
+			Name:    "ilter-mcp-hub",
+			Version: mcpServerVersion,
+		})
+		if err != nil {
+			resp = NewErrorResponse(req.ID, ErrorCodeInternal, "server/discover failed")
+		} else {
+			resp = NewSuccessResponse(req.ID, resultJSON)
+		}
+		return hub.finish(resp, start)
+	}
+
+	// `initialize` is the method that ESTABLISHES a session's version, so
+	// it must run before any method-support gate keyed on the session's
+	// (pre-negotiation) version — handleInitialize does its own
+	// negotiation and graceful degradation internally.
+	if req.Method == MethodInitialize {
 		resp = hub.handleInitialize(req, session)
+		return hub.finish(resp, start)
+	}
+
+	// Every other method is dispatched against this session's already-
+	// negotiated protocol.Version (or the newest ilter supports, as a
+	// defensive default, if a client somehow calls something else before
+	// ever calling initialize).
+	version := session.protocolVersionOrDefault()
+
+	if !version.IsMethodSupported(req.Method) {
+		resp = NewErrorResponse(req.ID, version.ErrorCode(protocol.ErrMethodNotFound), "Method not found: "+req.Method)
+		return hub.finish(resp, start)
+	}
+
+	switch req.Method {
 	case MethodToolsList:
-		resp = hub.handleToolsList(req, session)
+		resp = hub.handleToolsList(req, session, version)
 	case MethodToolsCall:
-		resp = hub.handleToolsCall(req, session)
+		resp = hub.handleToolsCall(req, session, version)
 	case MethodPing:
 		resp = NewSuccessResponse(req.ID, map[string]any{})
 	default:
-		resp = NewErrorResponse(req.ID, ErrorCodeMethodNotFound, "Method not found: "+req.Method)
+		resp = NewErrorResponse(req.ID, version.ErrorCode(protocol.ErrMethodNotFound), "Method not found: "+req.Method)
 	}
 
+	return hub.finish(resp, start)
+}
+
+// finish records metrics for a completed request and returns resp
+// unchanged — factored out so the server/discover and method-not-supported
+// early-return paths in Dispatch record the same metrics as the main
+// switch does.
+func (hub *Hub) finish(resp *JSONRPCResponse, start time.Time) *JSONRPCResponse {
 	if resp != nil {
 		if MCPRequestsTotal != nil {
 			MCPRequestsTotal.Add(context.Background(), 1)
@@ -82,10 +125,23 @@ func (hub *Hub) Dispatch(req *JSONRPCRequest, session *Session) *JSONRPCResponse
 			MCPRequestDuration.Record(context.Background(), float64(time.Since(start).Microseconds())/1000.0)
 		}
 	}
-
 	return resp
 }
 
+// handleInitialize negotiates a protocol.Version from the client's
+// requested protocolVersion (falling back to the newest ilter supports if
+// the request omits it or names something unrecognized — spec-compliant
+// "server picks a version it supports" behavior), pins it on the session
+// for the rest of its lifetime, and delegates the actual InitializeResult
+// shape to that version's HandleInitialize.
+//
+// A client that reaches this method at all is, by definition, using the
+// legacy stateful handshake — a genuinely 2026-07-28-native client
+// wouldn't call `initialize` (that version removed it). If negotiation
+// lands on a version that doesn't support this handshake
+// (protocol.ErrNoInitializeHandshake), ilter gracefully degrades to the
+// newest version that DOES, rather than erroring out a client that's
+// merely a version or two behind ilter's newest support.
 func (hub *Hub) handleInitialize(req *JSONRPCRequest, session *Session) *JSONRPCResponse {
 	var params InitializeParams
 	if len(req.Params) > 0 {
@@ -94,28 +150,35 @@ func (hub *Hub) handleInitialize(req *JSONRPCRequest, session *Session) *JSONRPC
 		}
 	}
 
-	if params.ProtocolVersion != "" && params.ProtocolVersion != mcpProtocolVersion {
-		return NewErrorResponse(req.ID, ErrorCodeInvalidParams,
-			fmt.Sprintf("Unsupported protocol version: %s", params.ProtocolVersion))
+	version := protocol.Negotiate(protocol.ID(params.ProtocolVersion))
+	resultJSON, err := version.HandleInitialize(req.Params, protocol.ImplementationInfo{
+		Name:    "ilter-mcp-hub",
+		Version: mcpServerVersion,
+	})
+	if errors.Is(err, protocol.ErrNoInitializeHandshake) {
+		for _, id := range protocol.Supported {
+			if id == version.ID() {
+				continue
+			}
+			fallback := protocol.Negotiate(id)
+			resultJSON, err = fallback.HandleInitialize(req.Params, protocol.ImplementationInfo{
+				Name:    "ilter-mcp-hub",
+				Version: mcpServerVersion,
+			})
+			if err == nil {
+				version = fallback
+				break
+			}
+		}
+	}
+	if err != nil {
+		return NewErrorResponse(req.ID, version.ErrorCode(protocol.ErrMethodNotFound), err.Error())
 	}
 
+	session.ProtocolVersion = version.ID()
 	session.ClientName = params.ClientInfo.Name
 	session.ClientVersion = params.ClientInfo.Version
-
-	result := InitializeResult{
-		ProtocolVersion: mcpProtocolVersion,
-		Capabilities: ServerCapabilities{
-			Tools: &ServerToolsCap{
-				ListChanged: false,
-			},
-		},
-		ServerInfo: ImplementationInfo{
-			Name:    "ilter-mcp-hub",
-			Version: mcpServerVersion,
-		},
-	}
-
-	return NewSuccessResponse(req.ID, result)
+	return NewSuccessResponse(req.ID, resultJSON)
 }
 
 func (hub *Hub) handleNotificationInitialized(session *Session) {
@@ -128,7 +191,7 @@ func (hub *Hub) handleNotificationInitialized(session *Session) {
 	)
 }
 
-func (hub *Hub) handleToolsList(req *JSONRPCRequest, session *Session) *JSONRPCResponse {
+func (hub *Hub) handleToolsList(req *JSONRPCRequest, session *Session, version protocol.Version) *JSONRPCResponse {
 	allTools := hub.registry.ListTools()
 
 	allExposed := make([]ToolDefinition, 0, len(allTools))
@@ -159,13 +222,27 @@ func (hub *Hub) handleToolsList(req *JSONRPCRequest, session *Session) *JSONRPCR
 		}
 	}
 
-	result := ListToolsResult{Tools: tools}
-	return NewSuccessResponse(req.ID, result)
+	toolsJSON, err := json.Marshal(tools)
+	if err != nil {
+		return NewErrorResponse(req.ID, version.ErrorCode(protocol.ErrToolExecution), "failed to encode tools list")
+	}
+	resultJSON, err := version.WrapToolsListResult(toolsJSON, "")
+	if err != nil {
+		return NewErrorResponse(req.ID, version.ErrorCode(protocol.ErrToolExecution), "failed to build tools/list result")
+	}
+	return NewSuccessResponse(req.ID, resultJSON)
 }
 
-func (hub *Hub) handleToolsCall(req *JSONRPCRequest, session *Session) *JSONRPCResponse {
+func (hub *Hub) handleToolsCall(req *JSONRPCRequest, session *Session, version protocol.Version) *JSONRPCResponse {
+	// Unconditional, matching today's exact behavior: Hub is a stateful,
+	// session/SSE-based transport regardless of negotiated version — a
+	// genuinely stateless 2026-07-28 client wouldn't be connecting through
+	// this transport at all (that's enforced at the HTTP layer in Phase 2's
+	// transport-requirements wiring, ilter-yyil.3.5), so relaxing this
+	// check based on Transport().StatefulSessions here would just let an
+	// old client that skipped the handshake slip through.
 	if !session.Initialized {
-		return NewErrorResponse(req.ID, ErrorCodeNotInitialized,
+		return NewErrorResponse(req.ID, version.ErrorCode(protocol.ErrNotInitialized),
 			"Session must be initialized before calling tools")
 	}
 
@@ -179,13 +256,13 @@ func (hub *Hub) handleToolsCall(req *JSONRPCRequest, session *Session) *JSONRPCR
 	serverID, internalName := splitExposedName(params.Name)
 	if serverID == "" || internalName == "" || internalName == params.Name {
 		// No separator found — not a valid exposed name.
-		return NewErrorResponse(req.ID, ErrorCodeToolNotFound, "Tool not found: invalid name format")
+		return NewErrorResponse(req.ID, version.ErrorCode(protocol.ErrToolNotFound), "Tool not found: invalid name format")
 	}
 
 	if hub.authorizer != nil {
 		result := hub.authorizer.CheckAccess(session.KeyPrefix, nil, session.KeyID, serverID, internalName)
 		if !result.Allowed {
-			return NewErrorResponse(req.ID, ErrorCodeToolNotFound, "Tool not found")
+			return NewErrorResponse(req.ID, version.ErrorCode(protocol.ErrToolNotFound), "Tool not found")
 		}
 	}
 
@@ -202,8 +279,17 @@ func (hub *Hub) handleToolsCall(req *JSONRPCRequest, session *Session) *JSONRPCR
 	}
 
 	result := hub.executor.ExecuteTool(context.Background(), execParams)
-	if result != nil {
-		return NewSuccessResponse(req.ID, result)
+	if result == nil {
+		return NewErrorResponse(req.ID, version.ErrorCode(protocol.ErrToolExecution), "Tool execution failed")
 	}
-	return NewErrorResponse(req.ID, ErrorCodeToolExecution, "Tool execution failed")
+
+	contentJSON, err := json.Marshal(result.Content)
+	if err != nil {
+		return NewErrorResponse(req.ID, version.ErrorCode(protocol.ErrToolExecution), "failed to encode tool result")
+	}
+	resultJSON, err := version.WrapCallToolResult(contentJSON, result.IsError)
+	if err != nil {
+		return NewErrorResponse(req.ID, version.ErrorCode(protocol.ErrToolExecution), "failed to build tools/call result")
+	}
+	return NewSuccessResponse(req.ID, resultJSON)
 }

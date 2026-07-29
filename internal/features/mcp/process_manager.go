@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v7"
+
+	"github.com/ilter-ai/ilter/internal/features/mcp/protocol"
 )
 
 // ProcessManager wraps a TransportClient (typically StdioClient) adding
@@ -98,6 +100,10 @@ func (pm *ProcessManager) IsConnected() bool {
 	return pm.inner.IsConnected()
 }
 
+func (pm *ProcessManager) NegotiatedVersion() protocol.ID {
+	return pm.inner.NegotiatedVersion()
+}
+
 func (pm *ProcessManager) healthLoop(ctx context.Context) {
 	ticker := time.NewTicker(healthInterval)
 	defer ticker.Stop()
@@ -125,20 +131,27 @@ func (pm *ProcessManager) checkHealth(ctx context.Context) {
 		return
 	}
 
-	pingID := json.RawMessage(`"ping"`)
-	pingReq := &JSONRPCRequest{
+	// ping is removed by the 2026-07-28 spec — a downstream server
+	// negotiated at that version is health-checked with a lightweight
+	// tools/list call instead, which every version supports.
+	healthCheckID := json.RawMessage(`"health-check"`)
+	healthCheckReq := &JSONRPCRequest{
 		JSONRPC: JSONRPCVersion,
-		ID:      &pingID,
+		ID:      &healthCheckID,
 		Method:  MethodPing,
 	}
+	if pm.inner.NegotiatedVersion() == protocol.V20260728 {
+		healthCheckReq.Method = MethodToolsList
+		healthCheckReq.Params = json.RawMessage(`{}`)
+	}
 
-	pingCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	checkCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	resp, err := pm.inner.Call(pingCtx, pingReq)
+	resp, err := pm.inner.Call(checkCtx, healthCheckReq)
 	if err != nil || resp == nil || resp.Error != nil {
-		mcpLog.Warn("health ping failed, restarting",
-			"server_id", pm.server.ID, "error", err)
+		mcpLog.Warn("health check failed, restarting",
+			"server_id", pm.server.ID, "method", healthCheckReq.Method, "error", err)
 		pm.restart(ctx)
 	}
 }

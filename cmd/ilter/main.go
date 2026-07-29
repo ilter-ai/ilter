@@ -15,12 +15,14 @@ import (
 	"github.com/ilter-ai/ilter/internal/config"
 	"github.com/ilter-ai/ilter/internal/model/catalog"
 	"github.com/ilter-ai/ilter/internal/provider"
+	"github.com/ilter-ai/ilter/internal/version"
 )
 
 func main() {
 	rootCmd := &cobra.Command{
-		Use:   "ilter",
-		Short: "ILTER is an AI proxy gateway with caching, budget enforcement, and semantic routing.",
+		Use:     "ilter",
+		Short:   "ILTER is an AI proxy gateway with caching, budget enforcement, and semantic routing.",
+		Version: version.Version,
 	}
 
 	serveCmd := &cobra.Command{

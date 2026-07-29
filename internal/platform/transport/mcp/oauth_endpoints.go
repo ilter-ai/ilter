@@ -3,14 +3,17 @@ package mcptransport
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/ilter-ai/ilter/internal/config"
 	"github.com/ilter-ai/ilter/internal/db"
 	mcp "github.com/ilter-ai/ilter/internal/features/mcp"
+	"github.com/ilter-ai/ilter/internal/features/mcp/protocol"
 )
 
 // OAuthEndpoints implements the MCP OAuth 2.0 PKCE endpoints required by the
@@ -118,6 +121,38 @@ func (o *OAuthEndpoints) authorizeGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// mcp_protocol_version is the connecting client's hint of which MCP
+	// version it intends to speak once it opens the actual /mcp
+	// connection — resolves which per-version OAuthPolicy this flow uses
+	// (explicit product decision: OAuth is forced apart per version, not
+	// unified). A request with NO hint at all is exactly today's
+	// pre-refactor status quo (no client sends this brand-new param yet),
+	// so it defaults to 2025-03-26 — today's actual behavior — rather
+	// than the newest version: defaulting an unhinted request to
+	// 2026-07-28 would silently start requiring application_type/CIMD
+	// for callers that have done nothing wrong, they simply predate this
+	// param existing (the same lesson learned the hard way in
+	// gateway.go's resolveVersion).
+	hintedVersion := protocol.ID(q.Get("mcp_protocol_version"))
+	if hintedVersion == "" {
+		hintedVersion = protocol.V20250326
+	}
+	policyVersion := protocol.Negotiate(hintedVersion)
+	policy := policyVersion.OAuthPolicy()
+
+	// CIMD (Client ID Metadata Documents, 2026-07-28+): a URL-shaped
+	// client_id is resolved by fetching it and validating it's a real
+	// metadata document, instead of requiring a prior /register call.
+	// Older-version policies don't support this — a URL-shaped client_id
+	// under DCR-only is just treated as an opaque string like any other,
+	// unchanged from today's behavior.
+	if policy.SupportsCIMD() && looksLikeURL(clientID) {
+		if err := resolveCIMDClientID(clientID); err != nil {
+			writeOAuthError(w, http.StatusBadRequest, "invalid_client_metadata", "failed to resolve Client ID Metadata Document: "+err.Error())
+			return
+		}
+	}
+
 	redirectURI := q.Get("redirect_uri")
 	if !isValidRedirectURI(redirectURI) {
 		writeOAuthError(w, http.StatusBadRequest, "invalid_redirect_uri", "redirect_uri must be a loopback address (127.0.0.1, [::1], or vscode://)")
@@ -139,7 +174,7 @@ func (o *OAuthEndpoints) authorizeGet(w http.ResponseWriter, r *http.Request) {
 	state := q.Get("state") // optional
 
 	// Store the pending request.
-	reqID := o.store.CreateRequest(clientID, redirectURI, codeChallenge, state)
+	reqID := o.store.CreateRequest(clientID, redirectURI, codeChallenge, state, string(hintedVersion))
 
 	// Redirect to the dashboard authorize page, passing details as query params.
 	dashURL := fmt.Sprintf(
@@ -256,10 +291,18 @@ func (o *OAuthEndpoints) authorizePost(w http.ResponseWriter, r *http.Request) {
 		writeOAuthError(w, http.StatusInternalServerError, "server_error", "store not available")
 		return
 	}
-	code := o.store.CreateCode(apiKey, authReq.RedirectURI, authReq.CodeChallenge, authReq.State)
+	code := o.store.CreateCode(apiKey, authReq.RedirectURI, authReq.CodeChallenge, authReq.State, authReq.ProtocolVersion)
+
+	redirectURI := authReq.RedirectURI + "?code=" + url.QueryEscape(code) + "&state=" + url.QueryEscape(authReq.State)
+	// iss (RFC 9207, anti-mix-up protection): included in the authorization
+	// response only for a version whose OAuthPolicy requires it
+	// (2026-07-28+) — older versions' flows are byte-for-byte unchanged.
+	if protocol.Negotiate(protocol.ID(authReq.ProtocolVersion)).OAuthPolicy().RequiresIssuerValidation() {
+		redirectURI += "&iss=" + url.QueryEscape(o.baseURL)
+	}
 
 	resp := map[string]string{
-		"redirect_uri": authReq.RedirectURI + "?code=" + url.QueryEscape(code) + "&state=" + url.QueryEscape(authReq.State),
+		"redirect_uri": redirectURI,
 		"code":         code,
 		"state":        authReq.State,
 	}
@@ -304,7 +347,7 @@ func (o *OAuthEndpoints) Token(w http.ResponseWriter, r *http.Request) {
 		writeOAuthError(w, http.StatusInternalServerError, "server_error", "store not available")
 		return
 	}
-	apiKey, redirectURI, state, ok := o.store.ExchangeCode(code, codeVerifier)
+	apiKey, redirectURI, state, protocolVersion, ok := o.store.ExchangeCode(code, codeVerifier)
 	if !ok {
 		writeOAuthError(w, http.StatusBadRequest, "invalid_grant", "code is invalid, expired, or already used")
 		return
@@ -322,6 +365,9 @@ func (o *OAuthEndpoints) Token(w http.ResponseWriter, r *http.Request) {
 		"scope":        "mcp",
 		"redirect_uri": redirectURI,
 		"state":        state,
+	}
+	if protocol.Negotiate(protocol.ID(protocolVersion)).OAuthPolicy().RequiresIssuerValidation() {
+		resp["iss"] = o.baseURL
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -341,6 +387,33 @@ func (o *OAuthEndpoints) Register(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
+	// See authorizeGet's identical comment: an unhinted request defaults
+	// to today's actual behavior (2025-03-26, DCR-only), not the newest
+	// version, so an existing caller that predates this param isn't
+	// suddenly required to send application_type.
+	hintedVersion := protocol.ID(r.URL.Query().Get("mcp_protocol_version"))
+	if hintedVersion == "" {
+		hintedVersion = protocol.V20250326
+	}
+	policy := protocol.Negotiate(hintedVersion).OAuthPolicy()
+
+	// application_type (PR#837, avoids OpenID Connect redirect URI
+	// conflicts): required and validated only for a version whose
+	// OAuthPolicy demands it (2026-07-28+). Older-version registrations
+	// keep today's exact behavior — body ignored entirely, fixed
+	// client_id echoed back.
+	if policy.RequiresApplicationType() {
+		var body struct {
+			ApplicationType string `json:"application_type"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body) // best-effort; empty body -> empty ApplicationType -> rejected below
+		if body.ApplicationType != "web" && body.ApplicationType != "native" {
+			writeOAuthError(w, http.StatusBadRequest, "invalid_client_metadata", "application_type is required (\"web\" or \"native\") for this protocol version")
+			return
+		}
+	}
+
 	resp := map[string]any{
 		"client_id":                  "ilter-mcp-client",
 		"client_secret_expires_at":   0,
@@ -357,6 +430,45 @@ func (o *OAuthEndpoints) Register(w http.ResponseWriter, r *http.Request) {
 
 // isValidRedirectURI checks that the redirect_uri is a local loopback address
 // or a privileged scheme (vscode://). This prevents open-redirect attacks.
+// looksLikeURL reports whether s is plausibly a Client ID Metadata
+// Document URL (http/https) rather than an opaque DCR-issued client_id
+// string.
+func looksLikeURL(s string) bool {
+	return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")
+}
+
+// cimdHTTPClient is used only to fetch Client ID Metadata Documents — a
+// short timeout since this blocks the /authorize request path.
+var cimdHTTPClient = &http.Client{Timeout: 5 * time.Second}
+
+// resolveCIMDClientID fetches a URL-shaped client_id and validates it
+// resolves to a real JSON metadata document, per the 2026-07-28 spec's
+// Client ID Metadata Documents mechanism (an alternative to Dynamic
+// Client Registration — the client's identity IS the URL, and that URL's
+// content is its self-asserted metadata).
+func resolveCIMDClientID(clientIDURL string) error {
+	resp, err := cimdHTTPClient.Get(clientIDURL)
+	if err != nil {
+		return fmt.Errorf("fetch failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	if err != nil {
+		return fmt.Errorf("read body: %w", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return fmt.Errorf("not a valid JSON metadata document: %w", err)
+	}
+	return nil
+}
+
 func isValidRedirectURI(uri string) bool {
 	if uri == "" {
 		return false

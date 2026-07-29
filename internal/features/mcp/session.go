@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"sync"
 	"time"
+
+	"github.com/ilter-ai/ilter/internal/features/mcp/protocol"
 )
 
 // Session represents a single SSE-based MCP client session.
@@ -26,11 +28,30 @@ type Session struct {
 	// Initialized becomes true after a successful initialize request.
 	Initialized bool
 
+	// ProtocolVersion is the MCP protocol version negotiated at initialize
+	// time (see Hub.handleInitialize) and reused for every subsequent
+	// dispatch in this session's lifetime — a client that connects on
+	// 2024-11-05 or 2025-03-26 gets that exact version for the whole
+	// session, never silently upgraded. Empty until the session's first
+	// successful initialize call.
+	ProtocolVersion protocol.ID
+
 	CreatedAt time.Time
 
 	// NotifyCh receives server-initiated events (for future use with notifications).
 	// The channel is created with a small buffer to avoid blocking.
 	NotifyCh chan any
+}
+
+// protocolVersionOrDefault returns the protocol.Version this session is
+// pinned to (set by Hub.handleInitialize), or the newest version ilter
+// supports if the session hasn't completed initialize yet — used by
+// Hub.Dispatch to resolve a Version for methods that may legitimately
+// arrive before initialize (e.g. server/discover has none, and returning
+// the newest is the spec-compliant default for anything else that
+// somehow reaches dispatch pre-handshake).
+func (s *Session) protocolVersionOrDefault() protocol.Version {
+	return protocol.Negotiate(s.ProtocolVersion)
 }
 
 // SessionManager provides concurrency-safe CRUD for SSE sessions.

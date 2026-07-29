@@ -22,25 +22,27 @@ func (q *Queries) DeleteMCPToolsByServer(ctx context.Context, serverID string) e
 const listMCPServers = `-- name: ListMCPServers :many
 
 SELECT id, name, description, transport, url, command, args, env,
-       handler, enabled, timeout_ms, max_retries, auth_type, auth_key_env
+       handler, enabled, timeout_ms, max_retries, auth_type, auth_key_env,
+       protocol_version
 FROM mcp_servers
 `
 
 type ListMCPServersRow struct {
-	ID          string  `json:"id"`
-	Name        string  `json:"name"`
-	Description *string `json:"description"`
-	Transport   string  `json:"transport"`
-	Url         *string `json:"url"`
-	Command     *string `json:"command"`
-	Args        *string `json:"args"`
-	Env         *string `json:"env"`
-	Handler     *string `json:"handler"`
-	Enabled     int64   `json:"enabled"`
-	TimeoutMs   *int64  `json:"timeout_ms"`
-	MaxRetries  int64   `json:"max_retries"`
-	AuthType    *string `json:"auth_type"`
-	AuthKeyEnv  *string `json:"auth_key_env"`
+	ID              string  `json:"id"`
+	Name            string  `json:"name"`
+	Description     *string `json:"description"`
+	Transport       string  `json:"transport"`
+	Url             *string `json:"url"`
+	Command         *string `json:"command"`
+	Args            *string `json:"args"`
+	Env             *string `json:"env"`
+	Handler         *string `json:"handler"`
+	Enabled         int64   `json:"enabled"`
+	TimeoutMs       *int64  `json:"timeout_ms"`
+	MaxRetries      int64   `json:"max_retries"`
+	AuthType        *string `json:"auth_type"`
+	AuthKeyEnv      *string `json:"auth_key_env"`
+	ProtocolVersion string  `json:"protocol_version"`
 }
 
 // MCP server registry: servers config and their discovered tools.
@@ -68,6 +70,7 @@ func (q *Queries) ListMCPServers(ctx context.Context) ([]ListMCPServersRow, erro
 			&i.MaxRetries,
 			&i.AuthType,
 			&i.AuthKeyEnv,
+			&i.ProtocolVersion,
 		); err != nil {
 			return nil, err
 		}

@@ -1,4 +1,8 @@
-# <img src="https://avatars.githubusercontent.com/u/290145298?s=60&v=4" width="30" height="30" alt="ILTER logo"> ILTER — AI Gateway
+<div align="center">
+  <a href="https://github.com/ilter-ai/ilter">
+    <img src="https://avatars.githubusercontent.com/u/290145298?s=120&v=4" width="80" height="80" alt="ILTER logo">
+  </a>
+  <h1>ILTER — AI Gateway</h1>
 
 [![Docker Hub](https://img.shields.io/badge/docker-ykocaman%2Filter-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/ykocaman/ilter)
 [![Docker Pulls](https://img.shields.io/docker/pulls/ykocaman/ilter)](https://hub.docker.com/r/ykocaman/ilter)
@@ -6,6 +10,8 @@
 [![GitHub release](https://img.shields.io/github/v/release/ilter-ai/ilter)](https://github.com/ilter-ai/ilter/releases)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/ilter-ai/ilter)](go.mod)
 [![License](https://img.shields.io/badge/license-Apache%202.0%20with%20Commons%20Clause-blue)](LICENSE)
+</div>
+
 
 Deploying AI models to production brings critical operational challenges such as unpredictable costs, data privacy risks, and API outages. **ILTER** is an independent gateway that sits between your application and AI providers; transforming your entire AI traffic into a secure, optimized, and fully controlled infrastructure without requiring any architectural changes in your code.
 
@@ -85,6 +91,7 @@ Connecting AI to your internal APIs or CRM usually requires heavy client-side mo
 - **Interception:** ILTER catches the `tool_call`, executes the MCP server tool locally (`stdio`/SSE), and returns the result to the model.
 - **OpenAPI Bridge:** Convert any REST API to an MCP tool list instantly.
 - **OAuth PKCE Support:** Standard OAuth PKCE authorization endpoints (`/.well-known/*`, `/authorize`, `/token`, `/register`) on port `8181` for remote MCP clients.
+- **Tri-Protocol Support:** Speaks all three published MCP revisions — `2024-11-05`, `2025-03-26`, `2026-07-28` — on both inbound (as MCP server) and outbound (as MCP client) sides, negotiating newest-first and bridging whatever versions each side actually supports. See [`docs/architecture.md`](docs/architecture.md#tri-protocol-mcp-support-2024-11-05--2025-03-26--2026-07-28) for the negotiation rules, per-version OAuth policies, and the async Tasks engine.
 
 ### ⚡ Smart Router
 Using expensive models for every simple question wastes engineering time and money. ILTER routes requests dynamically based on context.

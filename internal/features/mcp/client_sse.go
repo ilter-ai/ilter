@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/ilter-ai/ilter/internal/features/mcp/protocol"
 )
 
 // sseLog is scoped to SSE transport operations.
@@ -41,6 +43,8 @@ type SSEClient struct {
 
 	// discoveredTools caches the tools/list result from startup.
 	discoveredTools []ToolDefinition
+
+	negotiatedVersion protocol.ID
 }
 
 // NewSSEClient creates an unconnected SSE client.
@@ -54,9 +58,18 @@ func NewSSEClient(server *ServerInfo) *SSEClient {
 }
 
 func (c *SSEClient) Start(ctx context.Context) error {
+	// NOTE: locking here is deliberately narrow (lock/unlock around each
+	// individual field access) rather than one lock held for the whole
+	// function — sync.RWMutex is not reentrant, and the previous version
+	// of this method held c.mu.Lock() for its entire body via defer while
+	// also calling c.mu.RLock()/c.mu.Lock() again from within that same
+	// call stack (in the polling loop below, and via c.Call() itself),
+	// which is a guaranteed self-deadlock the first time it executed —
+	// this transport had no test coverage, so it went uncaught.
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.connected {
+	alreadyConnected := c.connected
+	c.mu.Unlock()
+	if alreadyConnected {
 		return nil
 	}
 
@@ -64,8 +77,21 @@ func (c *SSEClient) Start(ctx context.Context) error {
 		return fmt.Errorf("SSE server %q has no url configured", c.server.ID)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.server.Config.URL, nil)
+	// childCtx (not the outer ctx) drives the GET request itself, so that
+	// canceling it via Close() actually aborts the underlying network
+	// read — a bufio.Reader blocked on resp.Body.Read has no awareness of
+	// context cancellation on its own; only net/http's transport
+	// unblocking it in response to ITS request's context being done makes
+	// that happen. Deriving childCtx from ctx AFTER the request was
+	// already built with ctx (as this method did before) meant Close()'s
+	// cancel() had no effect on the live connection, and readLoop's
+	// blocking read would never return — a second, previously-untested
+	// hang bug in this transport, alongside the initialize handshake gap.
+	childCtx, cancel := context.WithCancel(ctx)
+
+	req, err := http.NewRequestWithContext(childCtx, http.MethodGet, c.server.Config.URL, nil)
 	if err != nil {
+		cancel()
 		return fmt.Errorf("sse request: %w", err)
 	}
 	req.Header.Set("Accept", "text/event-stream")
@@ -74,15 +100,18 @@ func (c *SSEClient) Start(ctx context.Context) error {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		cancel()
 		return fmt.Errorf("sse dial: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
+		cancel()
 		return fmt.Errorf("sse dial: %s returned HTTP %d", c.server.Config.URL, resp.StatusCode)
 	}
 
-	childCtx, cancel := context.WithCancel(ctx)
+	c.mu.Lock()
 	c.sseCancel = cancel
+	c.mu.Unlock()
 
 	go c.readLoop(childCtx, resp.Body)
 
@@ -101,13 +130,42 @@ func (c *SSEClient) Start(ctx context.Context) error {
 			pu := c.postURL
 			c.mu.RUnlock()
 			if pu != "" {
+				c.mu.Lock()
 				c.connected = true
+				c.mu.Unlock()
 				sseLog.Debug("connected", "server_id", c.server.ID,
 					"post_url", pu)
 
-				// Discover tools via tools/list (non-blocking on connect).
+				// Negotiate a protocol version before discovering tools —
+				// this transport previously did NO handshake at all
+				// (jumped straight to tools/list), a real gap: without it,
+				// ilter never confirmed what protocol version the
+				// downstream server actually speaks, and a version-aware
+				// server had no way to know what to expect from ilter.
 				discCtx, discCancel := context.WithTimeout(context.Background(), 15*time.Second)
 				defer discCancel()
+
+				rawCall := func(ctx context.Context, method string, params json.RawMessage) (*JSONRPCResponse, error) {
+					id := json.RawMessage(`"handshake"`)
+					return c.Call(ctx, &JSONRPCRequest{JSONRPC: JSONRPCVersion, ID: &id, Method: method, Params: params})
+				}
+				sendNotification := func(method string, params json.RawMessage) {
+					c.postNotification(discCtx, method, params)
+				}
+				version, negErr := negotiateOutbound(discCtx, c.server, rawCall, sendNotification)
+				if negErr != nil {
+					c.mu.Lock()
+					c.connected = false
+					c.mu.Unlock()
+					cancel()
+					resp.Body.Close()
+					return fmt.Errorf("sse handshake: %w", negErr)
+				}
+				c.mu.Lock()
+				c.negotiatedVersion = version.ID()
+				c.mu.Unlock()
+				sseLog.Debug("negotiated protocol version", "server_id", c.server.ID, "version", version.ID())
+
 				discovered, discErr := c.discoverTools(discCtx)
 				if discErr != nil {
 					sseLog.Warn("tools/list failed, tools will be unavailable",
@@ -205,6 +263,46 @@ func (c *SSEClient) IsConnected() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.connected
+}
+
+// NegotiatedVersion returns the MCP protocol version negotiated with this
+// downstream server during Start, or "" if Start hasn't completed yet.
+func (c *SSEClient) NegotiatedVersion() protocol.ID {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.negotiatedVersion
+}
+
+// postNotification sends a fire-and-forget JSON-RPC notification (no ID,
+// no response expected) to the server's POST URL — used for
+// notifications/initialized after a successful handshake. Errors are
+// logged, not returned: a notification delivery failure shouldn't fail
+// the whole connection the way a request/response round trip would.
+func (c *SSEClient) postNotification(ctx context.Context, method string, params json.RawMessage) {
+	body, err := json.Marshal(&JSONRPCRequest{JSONRPC: JSONRPCVersion, Method: method, Params: params})
+	if err != nil {
+		sseLog.Warn("failed to marshal notification", "server_id", c.server.ID, "method", method, "error", err)
+		return
+	}
+
+	c.mu.RLock()
+	pu := c.postURL
+	c.mu.RUnlock()
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, pu, bytes.NewReader(body))
+	if err != nil {
+		sseLog.Warn("failed to build notification request", "server_id", c.server.ID, "method", method, "error", err)
+		return
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	setSSEAuthHeaders(httpReq, c.server)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		sseLog.Warn("failed to post notification", "server_id", c.server.ID, "method", method, "error", err)
+		return
+	}
+	resp.Body.Close()
 }
 
 func (c *SSEClient) Tools() []ToolDefinition {

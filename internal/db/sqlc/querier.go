@@ -20,6 +20,8 @@ type Querier interface {
 	// Groups and group membership queries.
 	CreateGroup(ctx context.Context, arg CreateGroupParams) (sql.Result, error)
 	CreateGuardrailRule(ctx context.Context, arg CreateGuardrailRuleParams) error
+	// Backing store for the MCP Tasks extension (2026-07-28 only).
+	CreateMCPTask(ctx context.Context, arg CreateMCPTaskParams) error
 	// Prompt templates queries.
 	CreatePrompt(ctx context.Context, arg CreatePromptParams) (sql.Result, error)
 	CreatePromptVersion(ctx context.Context, arg CreatePromptVersionParams) error
@@ -29,6 +31,7 @@ type Querier interface {
 	DeleteConfig(ctx context.Context, arg DeleteConfigParams) error
 	DeleteConfigSection(ctx context.Context, section string) error
 	DeleteConversation(ctx context.Context, id string) (int64, error)
+	DeleteExpiredMCPTasks(ctx context.Context) error
 	DeleteGroup(ctx context.Context, id int64) (int64, error)
 	DeleteGuardrailRule(ctx context.Context, id string) (int64, error)
 	DeleteMCPToolsByServer(ctx context.Context, serverID string) error
@@ -59,6 +62,7 @@ type Querier interface {
 	GetInactiveModels(ctx context.Context) ([]string, error)
 	GetKeyUsage(ctx context.Context, arg GetKeyUsageParams) ([]GetKeyUsageRow, error)
 	GetLatestDiscovery(ctx context.Context, provider string) (interface{}, error)
+	GetMCPTask(ctx context.Context, id string) (McpTask, error)
 	GetMessageCreatedAt(ctx context.Context, id int64) (time.Time, error)
 	GetModelStatuses(ctx context.Context) ([]GetModelStatusesRow, error)
 	GetPromptTemplate(ctx context.Context, id int64) (Prompt, error)
@@ -105,6 +109,8 @@ type Querier interface {
 	UpdateAPIKey(ctx context.Context, arg UpdateAPIKeyParams) error
 	UpdateConversationTitle(ctx context.Context, arg UpdateConversationTitleParams) (int64, error)
 	UpdateGuardrailRule(ctx context.Context, arg UpdateGuardrailRuleParams) (int64, error)
+	UpdateMCPTaskInputRequired(ctx context.Context, arg UpdateMCPTaskInputRequiredParams) error
+	UpdateMCPTaskStatus(ctx context.Context, arg UpdateMCPTaskStatusParams) error
 	UpdatePrompt(ctx context.Context, arg UpdatePromptParams) error
 	UpsertConfig(ctx context.Context, arg UpsertConfigParams) error
 	UpsertMCPTool(ctx context.Context, arg UpsertMCPToolParams) error

@@ -49,8 +49,22 @@ func NewSQLiteStore(cfg config.StorageConfig) (*SQLiteStore, error) {
 		return nil, fmt.Errorf("failed to open sqlite db: %w", err)
 	}
 
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(5)
+	if cfg.SqlitePath == ":memory:" {
+		// An in-memory SQLite database is private to the single connection
+		// that created it — database/sql's connection pool opening a
+		// SECOND connection (which it will, under any concurrent access
+		// from more than one goroutine, e.g. a background task goroutine
+		// alongside the test's main goroutine) gets a completely separate,
+		// empty database with no schema at all ("no such table" errors
+		// that only reproduce under concurrency, never in a purely
+		// sequential test). Forcing a single pooled connection makes every
+		// query — from any goroutine — hit the same underlying database.
+		db.SetMaxOpenConns(1)
+		db.SetMaxIdleConns(1)
+	} else {
+		db.SetMaxOpenConns(25)
+		db.SetMaxIdleConns(5)
+	}
 	db.SetConnMaxLifetime(15 * time.Minute)
 
 	if err := db.Ping(); err != nil {

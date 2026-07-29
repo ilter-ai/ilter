@@ -39,17 +39,23 @@ type AuthRequest struct {
 	RedirectURI   string
 	CodeChallenge string
 	State         string
-	CreatedAt     time.Time
+	// ProtocolVersion is the connecting client's hinted MCP protocol
+	// version (mcp_protocol_version query param on /authorize, "auto" if
+	// absent) — carried through to the issued AuthCode so /token resolves
+	// the same per-version OAuthPolicy the whole flow started with.
+	ProtocolVersion string
+	CreatedAt       time.Time
 }
 
 // AuthCode holds an issued OAuth authorization code (post-user-consent).
 type AuthCode struct {
-	APIKey        string // raw API key plaintext — returned at /token exchange
-	RedirectURI   string
-	CodeChallenge string
-	State         string
-	ExpiresAt     time.Time
-	Used          bool
+	APIKey          string // raw API key plaintext — returned at /token exchange
+	RedirectURI     string
+	CodeChallenge   string
+	State           string
+	ProtocolVersion string
+	ExpiresAt       time.Time
+	Used            bool
 }
 
 const (
@@ -71,14 +77,18 @@ func NewOAuthStore(database *db.SQLiteStore) *OAuthStore {
 }
 
 // CreateRequest stores a pending authorization request and returns a unique
-// request ID. The request expires after requestTTL.
-func (s *OAuthStore) CreateRequest(clientID, redirectURI, codeChallenge, state string) string {
+// request ID. The request expires after requestTTL. protocolVersion is the
+// connecting client's hinted MCP protocol version ("auto" if unspecified).
+func (s *OAuthStore) CreateRequest(clientID, redirectURI, codeChallenge, state, protocolVersion string) string {
 	id := generateID()
+	if protocolVersion == "" {
+		protocolVersion = "auto"
+	}
 
 	if s.db != nil {
 		_, err := s.db.DB.Exec(
-			`INSERT INTO oauth_requests (id, client_id, redirect_uri, code_challenge, state, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))`,
-			id, clientID, redirectURI, codeChallenge, state,
+			`INSERT INTO oauth_requests (id, client_id, redirect_uri, code_challenge, state, protocol_version, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+			id, clientID, redirectURI, codeChallenge, state, protocolVersion,
 		)
 		if err != nil {
 			return ""
@@ -90,11 +100,12 @@ func (s *OAuthStore) CreateRequest(clientID, redirectURI, codeChallenge, state s
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.requests["req:"+id] = &AuthRequest{
-		ClientID:      clientID,
-		RedirectURI:   redirectURI,
-		CodeChallenge: codeChallenge,
-		State:         state,
-		CreatedAt:     time.Now(),
+		ClientID:        clientID,
+		RedirectURI:     redirectURI,
+		CodeChallenge:   codeChallenge,
+		State:           state,
+		ProtocolVersion: protocolVersion,
+		CreatedAt:       time.Now(),
 	}
 	return id
 }
@@ -103,11 +114,11 @@ func (s *OAuthStore) CreateRequest(clientID, redirectURI, codeChallenge, state s
 // unknown or expired.
 func (s *OAuthStore) GetRequest(id string) *AuthRequest {
 	if s.db != nil {
-		var clientID, redirectURI, codeChallenge, state string
+		var clientID, redirectURI, codeChallenge, state, protocolVersion string
 		var createdAt time.Time
 		err := s.db.DB.QueryRow(
-			`SELECT client_id, redirect_uri, code_challenge, state, created_at FROM oauth_requests WHERE id = ?`, id,
-		).Scan(&clientID, &redirectURI, &codeChallenge, &state, &createdAt)
+			`SELECT client_id, redirect_uri, code_challenge, state, protocol_version, created_at FROM oauth_requests WHERE id = ?`, id,
+		).Scan(&clientID, &redirectURI, &codeChallenge, &state, &protocolVersion, &createdAt)
 		if err != nil {
 			return nil
 		}
@@ -115,11 +126,12 @@ func (s *OAuthStore) GetRequest(id string) *AuthRequest {
 			return nil
 		}
 		return &AuthRequest{
-			ClientID:      clientID,
-			RedirectURI:   redirectURI,
-			CodeChallenge: codeChallenge,
-			State:         state,
-			CreatedAt:     createdAt,
+			ClientID:        clientID,
+			RedirectURI:     redirectURI,
+			CodeChallenge:   codeChallenge,
+			State:           state,
+			ProtocolVersion: protocolVersion,
+			CreatedAt:       createdAt,
 		}
 	}
 
@@ -139,22 +151,23 @@ func (s *OAuthStore) GetRequest(id string) *AuthRequest {
 // GetCode returns the auth code for the given code string, or nil on miss.
 func (s *OAuthStore) GetCode(code string) *AuthCode {
 	if s.db != nil {
-		var apiKey, redirectURI, cc, state string
+		var apiKey, redirectURI, cc, state, protocolVersion string
 		var expiresAt time.Time
 		var used int64
 		err := s.db.DB.QueryRow(
-			`SELECT api_key, redirect_uri, code_challenge, state, expires_at, used FROM oauth_codes WHERE id = ?`, code,
-		).Scan(&apiKey, &redirectURI, &cc, &state, &expiresAt, &used)
+			`SELECT api_key, redirect_uri, code_challenge, state, protocol_version, expires_at, used FROM oauth_codes WHERE id = ?`, code,
+		).Scan(&apiKey, &redirectURI, &cc, &state, &protocolVersion, &expiresAt, &used)
 		if err != nil {
 			return nil
 		}
 		return &AuthCode{
-			APIKey:        apiKey,
-			RedirectURI:   redirectURI,
-			CodeChallenge: cc,
-			State:         state,
-			ExpiresAt:     expiresAt,
-			Used:          used != 0,
+			APIKey:          apiKey,
+			RedirectURI:     redirectURI,
+			CodeChallenge:   cc,
+			State:           state,
+			ProtocolVersion: protocolVersion,
+			ExpiresAt:       expiresAt,
+			Used:            used != 0,
 		}
 	}
 
@@ -176,8 +189,8 @@ func (s *OAuthStore) SetCode(id string, code *AuthCode) {
 			used = 1
 		}
 		_, _ = s.db.DB.Exec(
-			`INSERT OR REPLACE INTO oauth_codes (id, api_key, redirect_uri, code_challenge, state, expires_at, used) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			id, code.APIKey, code.RedirectURI, code.CodeChallenge, code.State, code.ExpiresAt, used,
+			`INSERT OR REPLACE INTO oauth_codes (id, api_key, redirect_uri, code_challenge, state, protocol_version, expires_at, used) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			id, code.APIKey, code.RedirectURI, code.CodeChallenge, code.State, code.ProtocolVersion, code.ExpiresAt, used,
 		)
 		return
 	}
@@ -206,14 +219,19 @@ func (s *OAuthStore) DeleteRequest(id string) {
 }
 
 // CreateCode issues an opaque authorization code bound to the given API key
-// and PKCE challenge. Returns the opaque code string.
-func (s *OAuthStore) CreateCode(apiKey, redirectURI, codeChallenge, state string) string {
+// and PKCE challenge. Returns the opaque code string. protocolVersion is
+// carried over from the originating AuthRequest so /token resolves the
+// same per-version OAuthPolicy.
+func (s *OAuthStore) CreateCode(apiKey, redirectURI, codeChallenge, state, protocolVersion string) string {
 	code := generateID()
+	if protocolVersion == "" {
+		protocolVersion = "auto"
+	}
 
 	if s.db != nil {
 		_, err := s.db.DB.Exec(
-			`INSERT INTO oauth_codes (id, api_key, redirect_uri, code_challenge, state, expires_at, used) VALUES (?, ?, ?, ?, ?, datetime('now', ?), 0)`,
-			code, apiKey, redirectURI, codeChallenge, state, "+120 seconds",
+			`INSERT INTO oauth_codes (id, api_key, redirect_uri, code_challenge, state, protocol_version, expires_at, used) VALUES (?, ?, ?, ?, ?, ?, datetime('now', ?), 0)`,
+			code, apiKey, redirectURI, codeChallenge, state, protocolVersion, "+120 seconds",
 		)
 		if err != nil {
 			return ""
@@ -225,12 +243,13 @@ func (s *OAuthStore) CreateCode(apiKey, redirectURI, codeChallenge, state string
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.codes["code:"+code] = &AuthCode{
-		APIKey:        apiKey,
-		RedirectURI:   redirectURI,
-		CodeChallenge: codeChallenge,
-		State:         state,
-		ExpiresAt:     time.Now().Add(s.codeTTL),
-		Used:          false,
+		APIKey:          apiKey,
+		RedirectURI:     redirectURI,
+		CodeChallenge:   codeChallenge,
+		State:           state,
+		ProtocolVersion: protocolVersion,
+		ExpiresAt:       time.Now().Add(s.codeTTL),
+		Used:            false,
 	}
 	return code
 }
@@ -240,7 +259,7 @@ func (s *OAuthStore) CreateCode(apiKey, redirectURI, codeChallenge, state string
 // Returns the API key and associated metadata on success.
 // Returns ok=false if the code is invalid, expired, already used, or PKCE
 // verification fails.
-func (s *OAuthStore) ExchangeCode(code, codeVerifier string) (apiKey, redirectURI, state string, ok bool) {
+func (s *OAuthStore) ExchangeCode(code, codeVerifier string) (apiKey, redirectURI, state, protocolVersion string, ok bool) {
 	if s.db != nil {
 		return s.exchangeCodeDB(code, codeVerifier)
 	}
@@ -251,50 +270,50 @@ func (s *OAuthStore) ExchangeCode(code, codeVerifier string) (apiKey, redirectUR
 
 	ac, found := s.codes["code:"+code]
 	if !found {
-		return "", "", "", false
+		return "", "", "", "", false
 	}
 
 	// Always delete on use or failure — single-use enforcement.
 	defer delete(s.codes, "code:"+code)
 
 	if ac.Used {
-		return "", "", "", false
+		return "", "", "", "", false
 	}
 	if time.Now().After(ac.ExpiresAt) {
-		return "", "", "", false
+		return "", "", "", "", false
 	}
 
 	if ac.CodeChallenge != "" {
 		if codeVerifier == "" {
-			return "", "", "", false
+			return "", "", "", "", false
 		}
 		hash := sha256.Sum256([]byte(codeVerifier))
 		expected := base64.RawURLEncoding.EncodeToString(hash[:])
 		if subtle.ConstantTimeCompare([]byte(expected), []byte(ac.CodeChallenge)) != 1 {
-			return "", "", "", false
+			return "", "", "", "", false
 		}
 	}
 
 	ac.Used = true
-	return ac.APIKey, ac.RedirectURI, ac.State, true
+	return ac.APIKey, ac.RedirectURI, ac.State, ac.ProtocolVersion, true
 }
 
-func (s *OAuthStore) exchangeCodeDB(code, codeVerifier string) (apiKey, redirectURI, state string, ok bool) {
+func (s *OAuthStore) exchangeCodeDB(code, codeVerifier string) (apiKey, redirectURI, state, protocolVersion string, ok bool) {
 	tx, err := s.db.DB.Begin()
 	if err != nil {
-		return "", "", "", false
+		return "", "", "", "", false
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	var apiKeyDB, redirectURIDB, cc, stateDB string
+	var apiKeyDB, redirectURIDB, cc, stateDB, protocolVersionDB string
 	var expiresAt time.Time
 	var used int64
 
 	err = tx.QueryRow(
-		`SELECT api_key, redirect_uri, code_challenge, state, expires_at, used FROM oauth_codes WHERE id = ?`, code,
-	).Scan(&apiKeyDB, &redirectURIDB, &cc, &stateDB, &expiresAt, &used)
+		`SELECT api_key, redirect_uri, code_challenge, state, protocol_version, expires_at, used FROM oauth_codes WHERE id = ?`, code,
+	).Scan(&apiKeyDB, &redirectURIDB, &cc, &stateDB, &protocolVersionDB, &expiresAt, &used)
 	if err != nil {
-		return "", "", "", false
+		return "", "", "", "", false
 	}
 
 	// Always delete on use or failure — single-use enforcement.
@@ -306,13 +325,13 @@ func (s *OAuthStore) exchangeCodeDB(code, codeVerifier string) (apiKey, redirect
 		if err := tx.Commit(); err != nil {
 			slog.Error("failed to commit tx (used)", "error", err)
 		}
-		return "", "", "", false
+		return "", "", "", "", false
 	}
 	if time.Now().After(expiresAt) {
 		if err := tx.Commit(); err != nil {
 			slog.Error("failed to commit tx (expired)", "error", err)
 		}
-		return "", "", "", false
+		return "", "", "", "", false
 	}
 
 	if cc != "" {
@@ -320,7 +339,7 @@ func (s *OAuthStore) exchangeCodeDB(code, codeVerifier string) (apiKey, redirect
 			if err := tx.Commit(); err != nil {
 				slog.Error("failed to commit tx (no verifier)", "error", err)
 			}
-			return "", "", "", false
+			return "", "", "", "", false
 		}
 		hash := sha256.Sum256([]byte(codeVerifier))
 		expected := base64.RawURLEncoding.EncodeToString(hash[:])
@@ -328,15 +347,15 @@ func (s *OAuthStore) exchangeCodeDB(code, codeVerifier string) (apiKey, redirect
 			if err := tx.Commit(); err != nil {
 				slog.Error("failed to commit tx (code_challenge mismatch)", "error", err)
 			}
-			return "", "", "", false
+			return "", "", "", "", false
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		return "", "", "", false
+		return "", "", "", "", false
 	}
 
-	return apiKeyDB, redirectURIDB, stateDB, true
+	return apiKeyDB, redirectURIDB, stateDB, protocolVersionDB, true
 }
 
 // StartCleanup launches a background goroutine that periodically removes

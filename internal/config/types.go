@@ -291,6 +291,12 @@ type MCPServerConfig struct {
 	MaxRetries  int
 	AuthType    string
 	AuthKeyEnv  string
+	// ProtocolVersion pins the outbound MCP protocol version negotiation
+	// for this server: "auto" (default) negotiates newest-first with
+	// fallback to whatever the server actually accepts; an exact version
+	// string ("2024-11-05" | "2025-03-26" | "2026-07-28") forces that
+	// version, skipping negotiation entirely.
+	ProtocolVersion string
 }
 
 // MCPAccessRule defines a per-key, per-group, or per-key-id tool access rule.

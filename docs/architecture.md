@@ -367,6 +367,70 @@ The MCP Gateway enables seamless integration of Model Context Protocol tools int
   - `/token` (POST)
   - `/register` (GET/POST — dynamic client registration)
 
+### Tri-Protocol MCP Support (2024-11-05 / 2025-03-26 / 2026-07-28)
+
+ILTER's MCP Gateway and Hub speak all three published MCP protocol revisions
+simultaneously, on both sides of the bridge:
+
+- **Inbound** (ILTER as MCP server, serving Claude/VS Code/Cursor/etc.):
+  whichever version a client connects with, ILTER continues that entire
+  session faithfully in that exact version. A client that supports discovery
+  can call `server/discover` before pinning a version to see
+  `protocolVersions` advertised newest-first (`2026-07-28`, `2025-03-26`,
+  `2024-11-05`).
+- **Outbound** (ILTER as MCP client to a registered downstream server): ILTER
+  tries the newest protocol first and negotiates down to whatever that
+  specific downstream server actually supports — independent of the inbound
+  client's version. ILTER bridges the two sides transparently.
+
+Each version is implemented in its own package under
+`internal/features/mcp/protocol/`, registered against a shared
+`protocol.Version` interface (`version.go`) via a `database/sql`-style
+driver registry (`Register`/`Negotiate`) to avoid import cycles:
+
+| Package | Handshake | Transport | Notable behavior |
+|---|---|---|---|
+| `protocol/v20241105` | `initialize` handshake | HTTP + legacy SSE | Minimal capability set, legacy error codes |
+| `protocol/v20250326` | `initialize` handshake | Streamable HTTP + SSE hybrid | Pure extraction of ILTER's original (pre-tri-protocol) behavior — zero behavior change |
+| `protocol/v20260728` | Stateless — no `initialize`; per-request `_meta` | Streamable HTTP with mandatory `Mcp-Method`/`Mcp-Name` headers | `server/discover`, MRTR `resultType`/`CacheableResult`, `subscriptions/listen` (replaces SSE-GET), Tasks extension, renumbered error codes, `ping`/`logging.setLevel`/`roots.list_changed` removed |
+
+Negotiation rules, enforced in `Gateway.Dispatch`/`Hub.Dispatch`
+(`internal/features/mcp/gateway.go`, `hub.go`):
+
+1. `server/discover` answers immediately with `protocol.Supported`, before
+   any version is pinned.
+2. `initialize` with an explicit `protocolVersion` pins that exact version
+   for the session if supported. A request for `2026-07-28` (which has no
+   `initialize` method) gracefully degrades to the newest version that still
+   defines one (`2025-03-26`) — logged as `client requested different
+   protocol version, responding with negotiated version`.
+3. A per-request `_meta["io.modelcontextprotocol/protocolVersion"]` resolves
+   that single request statelessly, matching 2026-07-28's no-session design.
+4. No version signal at all defaults to `2025-03-26` (today's original
+   behavior), never to the newest version — an unhinted request must not
+   silently gain new-version requirements (e.g. mandatory transport headers).
+
+**OAuth is forced apart per version** — a deliberate design decision, not a
+shared/unified flow. `oauth_endpoints.go` reads an optional
+`mcp_protocol_version` query parameter and dispatches to
+`protocol.Negotiate(hint).OAuthPolicy()`:
+
+- `v20241105`/`v20250326`: RFC 7591 Dynamic Client Registration only.
+- `v20260728`: DCR (kept for back-compat) **+** Client ID Metadata Documents
+  (CIMD — a URL-shaped `client_id` is fetched and validated as a JSON
+  metadata document) **+** `iss` in both the `/authorize` redirect and the
+  `/token` response (RFC 9207) **+** a required `application_type`
+  (`"web"` or `"native"`) on `/register`.
+
+**Tasks extension** (`io.modelcontextprotocol/tasks`, 2026-07-28-only) is a
+real, working async engine, not a stub: a `tools/call` on a 2026-07-28
+session that exceeds a configurable execution-time threshold is promoted to
+a background task (`internal/features/mcp/tasks_manager.go`), backed by a
+`mcp_tasks` DB table, with genuine pause/resume via channels for
+`input_required` interim states and a background expiry sweep for abandoned
+tasks. Clients poll/resume via the `tasks/get`/`tasks/update` JSON-RPC
+methods.
+
 ---
 
 ## Data Storage & Schema Architecture

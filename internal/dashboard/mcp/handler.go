@@ -80,6 +80,16 @@ func nullToEmpty(s sql.NullString) string {
 	return ""
 }
 
+// nullToEmptyOr is nullToEmpty with a fallback for the empty-string case
+// (not just SQL NULL) — used for protocol_version, where "" and NULL both
+// mean "not set, use the default negotiation behavior".
+func nullToEmptyOr(s sql.NullString, fallback string) string {
+	if v := nullToEmpty(s); v != "" {
+		return v
+	}
+	return fallback
+}
+
 var idSlugRegex = regexp.MustCompile(`[^a-z0-9-]`)
 
 func slugify(name string) string {

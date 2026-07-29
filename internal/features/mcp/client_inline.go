@@ -3,10 +3,13 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 
 	"github.com/ilter-ai/ilter/internal/features/mcp/inline"
+	"github.com/ilter-ai/ilter/internal/features/mcp/protocol"
+	"github.com/ilter-ai/ilter/internal/version"
 )
 
 // InlineClient wraps a Go function as an MCP TransportClient.
@@ -20,6 +23,14 @@ type InlineClient struct {
 
 	mu        sync.Mutex
 	connected bool
+
+	// negotiatedVersion for an inline "server" isn't negotiated via a real
+	// round trip (there's no external process to talk to — the handler
+	// runs in-process), so it's just resolved from the server's config pin
+	// (or newest, if "auto") at Start time. Kept for interface consistency
+	// with the real transports and so handleMethod's synthesized
+	// initialize response reflects the same version model.
+	negotiatedVersion protocol.ID
 }
 
 // NewInlineClient creates a client that delegates every tools/call to the
@@ -39,6 +50,7 @@ func (c *InlineClient) Start(_ context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.connected = true
+	c.negotiatedVersion = protocol.Negotiate(protocol.ID(c.server.Config.ProtocolVersion)).ID()
 	return nil
 }
 
@@ -88,10 +100,32 @@ func (c *InlineClient) Call(ctx context.Context, req *JSONRPCRequest) (*JSONRPCR
 func (c *InlineClient) handleMethod(req *JSONRPCRequest) (*JSONRPCResponse, error) {
 	switch req.Method {
 	case "initialize":
-		return NewSuccessResponse(req.ID, InitializeResult{
-			ProtocolVersion: "2024-11-05",
-			Capabilities:    ServerCapabilities{},
-		}), nil
+		c.mu.Lock()
+		v := protocol.Negotiate(c.negotiatedVersion)
+		c.mu.Unlock()
+		resultJSON, err := v.HandleInitialize(req.Params, protocol.ImplementationInfo{Name: "ilter", Version: version.Version})
+		if errors.Is(err, protocol.ErrNoInitializeHandshake) {
+			// Mirrors gateway.go/hub.go's graceful degradation: a caller
+			// that explicitly invokes the legacy `initialize` method is,
+			// by definition, not speaking the stateless 2026-07-28 model
+			// (which has no such method) — fall back to the newest
+			// version that still defines it rather than erroring.
+			for _, id := range protocol.Supported {
+				if id == v.ID() {
+					continue
+				}
+				fallback := protocol.Negotiate(id)
+				resultJSON, err = fallback.HandleInitialize(req.Params, protocol.ImplementationInfo{Name: "ilter", Version: version.Version})
+				if err == nil {
+					v = fallback
+					break
+				}
+			}
+		}
+		if err != nil {
+			return NewErrorResponse(req.ID, v.ErrorCode(protocol.ErrMethodNotFound), err.Error()), nil
+		}
+		return NewSuccessResponse(req.ID, resultJSON), nil
 
 	case "tools/list":
 		inlineTools := inline.ListTools(c.server.ID)
@@ -145,6 +179,14 @@ func (c *InlineClient) IsConnected() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.connected
+}
+
+// NegotiatedVersion returns the protocol version resolved for this inline
+// "server" at Start time (its config pin, or newest if "auto").
+func (c *InlineClient) NegotiatedVersion() protocol.ID {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.negotiatedVersion
 }
 
 // Ensure interface compliance.

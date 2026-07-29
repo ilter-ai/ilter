@@ -440,7 +440,7 @@ func TestOAuthEndpoints_DBNilCreateNew(t *testing.T) {
 	o, store := newTestEndpoints() // db is nil
 
 	// Create a request through the public API.
-	reqID := store.CreateRequest("mcp-client", "http://127.0.0.1:9999/callback", testChallenge, "mystate")
+	reqID := store.CreateRequest("mcp-client", "http://127.0.0.1:9999/callback", testChallenge, "mystate", "")
 
 	// Try create_new with db=nil
 	body := map[string]any{"request_id": reqID, "action": "create_new"}
@@ -462,7 +462,7 @@ func TestOAuthEndpoints_DBNilCreateNew(t *testing.T) {
 func TestOAuthEndpoints_InvalidAction(t *testing.T) {
 	o, store := newTestEndpoints()
 
-	reqID := store.CreateRequest("mcp-client", "http://127.0.0.1:9999/callback", testChallenge, "mystate")
+	reqID := store.CreateRequest("mcp-client", "http://127.0.0.1:9999/callback", testChallenge, "mystate", "")
 
 	body := map[string]any{"request_id": reqID, "action": "delete_everything"}
 	b, _ := json.Marshal(body)
@@ -615,7 +615,7 @@ func TestOAuthEndpoints_TokenRedirectURIMismatch(t *testing.T) {
 
 func TestOAuthEndpoints_UseExistingMissingAPIKey(t *testing.T) {
 	o, store := newTestEndpoints()
-	reqID := store.CreateRequest("mcp-client", "http://127.0.0.1:9999/callback", testChallenge, "mystate")
+	reqID := store.CreateRequest("mcp-client", "http://127.0.0.1:9999/callback", testChallenge, "mystate", "")
 
 	// Send use_existing without api_key.
 	body := map[string]any{"request_id": reqID, "action": "use_existing"}

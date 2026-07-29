@@ -51,8 +51,6 @@ test.describe('Overview dashboard', () => {
       await expect(page.getByText(label, { exact: true }).first()).toBeVisible({ timeout: 10000 })
     }
 
-    await expect(page.getByText('v0.1.0', { exact: false })).toBeVisible({ timeout: 10000 })
-
     await checkCrashIndicators(page, errors)
     expect(errors).toEqual([])
   })

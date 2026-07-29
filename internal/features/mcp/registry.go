@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sort"
 	"sync"
 	"time"
 
@@ -32,6 +33,30 @@ type Registry struct {
 	servers map[string]*ServerInfo // server ID → info
 
 	store *db.SQLiteStore
+
+	changeMu sync.Mutex
+	onChange []func()
+}
+
+// OnToolsChanged registers fn to be called whenever this registry's tool
+// set changes (SyncTools, RegisterServer, UnregisterServer) — the real
+// event source behind the 2026-07-28 `subscriptions/listen` toolsListChanged
+// notification (see SubscriptionBroker), so a genuine downstream change
+// drives the notification rather than a synthetic trigger.
+func (r *Registry) OnToolsChanged(fn func()) {
+	r.changeMu.Lock()
+	defer r.changeMu.Unlock()
+	r.onChange = append(r.onChange, fn)
+}
+
+func (r *Registry) fireToolsChanged() {
+	r.changeMu.Lock()
+	fns := make([]func(), len(r.onChange))
+	copy(fns, r.onChange)
+	r.changeMu.Unlock()
+	for _, fn := range fns {
+		fn()
+	}
 }
 
 // NewRegistryFromCache creates a Registry populated from the given server
@@ -121,7 +146,8 @@ func (r *Registry) InitFromCache(servers []config.MCPServerConfig) error {
 	return nil
 }
 
-// ListServers returns all registered servers (read-only snapshot).
+// ListServers returns all registered servers (read-only snapshot), sorted by
+// ID for deterministic ordering across calls (Go map iteration is randomized).
 func (r *Registry) ListServers() []*ServerInfo {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -129,10 +155,13 @@ func (r *Registry) ListServers() []*ServerInfo {
 	for _, s := range r.servers {
 		out = append(out, s)
 	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out
 }
 
-// ListTools returns all tools across all servers.
+// ListTools returns all tools across all servers, sorted by (ServerID, tool
+// name) for deterministic ordering across calls — clients rely on stable
+// tools/list ordering for LLM prompt-cache hit rates.
 func (r *Registry) ListTools() []ToolInfo {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -142,6 +171,12 @@ func (r *Registry) ListTools() []ToolInfo {
 			out = append(out, ToolInfo{Tool: t, ServerID: id})
 		}
 	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].ServerID != out[j].ServerID {
+			return out[i].ServerID < out[j].ServerID
+		}
+		return out[i].Tool.Name < out[j].Tool.Name
+	})
 	return out
 }
 
@@ -214,22 +249,24 @@ func (r *Registry) RegisterServer(id string, cfg config.MCPServerConfig, tools [
 		return
 	}
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	r.servers[id] = &ServerInfo{
 		ID:      id,
 		Config:  cfg,
 		Tools:   tools,
 		Healthy: false,
 	}
+	r.mu.Unlock()
 	mcpLog.Debug("server registered in registry", "server_id", id)
+	r.fireToolsChanged()
 }
 
 // UnregisterServer removes a server from the in-memory registry.
 func (r *Registry) UnregisterServer(id string) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	delete(r.servers, id)
+	r.mu.Unlock()
 	mcpLog.Debug("server unregistered from registry", "server_id", id)
+	r.fireToolsChanged()
 }
 
 // SyncTools updates the in-memory tool list for a server and persists to DB.
@@ -254,6 +291,7 @@ func (r *Registry) SyncTools(serverID string, tools []ToolDefinition) error {
 		}
 	}
 
+	r.fireToolsChanged()
 	return nil
 }
 
@@ -290,18 +328,19 @@ func (r *Registry) loadServersFromDB() error {
 		}
 
 		sc := config.MCPServerConfig{
-			ID:          row.ID,
-			Name:        row.Name,
-			Description: row.Description,
-			Transport:   row.Transport,
-			URL:         row.URL,
-			Command:     row.Command,
-			Handler:     row.Handler,
-			Enabled:     true,
-			Timeout:     timeout,
-			MaxRetries:  row.MaxRetries,
-			AuthType:    row.AuthType,
-			AuthKeyEnv:  row.AuthKeyEnv,
+			ID:              row.ID,
+			Name:            row.Name,
+			Description:     row.Description,
+			Transport:       row.Transport,
+			URL:             row.URL,
+			Command:         row.Command,
+			Handler:         row.Handler,
+			Enabled:         true,
+			Timeout:         timeout,
+			MaxRetries:      row.MaxRetries,
+			AuthType:        row.AuthType,
+			AuthKeyEnv:      row.AuthKeyEnv,
+			ProtocolVersion: row.ProtocolVersion,
 		}
 
 		// Unmarshal JSON args and env.

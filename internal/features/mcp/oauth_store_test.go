@@ -24,7 +24,7 @@ const (
 func TestOAuthStore_InMemory_CreateAndGetRequest(t *testing.T) {
 	s := NewOAuthStore(nil)
 
-	id := s.CreateRequest("client-1", "http://127.0.0.1:9999/cb", testChallenge, "state-1")
+	id := s.CreateRequest("client-1", "http://127.0.0.1:9999/cb", testChallenge, "state-1", "")
 	require.NotEmpty(t, id)
 
 	req := s.GetRequest(id)
@@ -41,7 +41,7 @@ func TestOAuthStore_InMemory_GetRequestExpired(t *testing.T) {
 	// Manually set a very short TTL for this test.
 	s.requestTTL = 1 * time.Nanosecond
 
-	id := s.CreateRequest("client-1", "http://127.0.0.1:9999/cb", testChallenge, "state-1")
+	id := s.CreateRequest("client-1", "http://127.0.0.1:9999/cb", testChallenge, "state-1", "")
 	require.NotEmpty(t, id)
 	time.Sleep(time.Nanosecond)
 
@@ -52,10 +52,10 @@ func TestOAuthStore_InMemory_GetRequestExpired(t *testing.T) {
 func TestOAuthStore_InMemory_CreateAndExchangeCode(t *testing.T) {
 	s := NewOAuthStore(nil)
 
-	code := s.CreateCode("sk-test-key", "http://127.0.0.1:9999/cb", testChallenge, "state-1")
+	code := s.CreateCode("sk-test-key", "http://127.0.0.1:9999/cb", testChallenge, "state-1", "")
 	require.NotEmpty(t, code)
 
-	apiKey, redirectURI, state, ok := s.ExchangeCode(code, testVerifier)
+	apiKey, redirectURI, state, _, ok := s.ExchangeCode(code, testVerifier)
 	assert.True(t, ok)
 	assert.Equal(t, "sk-test-key", apiKey)
 	assert.Equal(t, "http://127.0.0.1:9999/cb", redirectURI)
@@ -65,22 +65,22 @@ func TestOAuthStore_InMemory_CreateAndExchangeCode(t *testing.T) {
 func TestOAuthStore_InMemory_CodeReplay(t *testing.T) {
 	s := NewOAuthStore(nil)
 
-	code := s.CreateCode("sk-test-key", "http://127.0.0.1:9999/cb", "", "")
+	code := s.CreateCode("sk-test-key", "http://127.0.0.1:9999/cb", "", "", "")
 	require.NotEmpty(t, code)
 
 	// First exchange succeeds.
-	_, _, _, ok := s.ExchangeCode(code, "")
+	_, _, _, _, ok := s.ExchangeCode(code, "")
 	assert.True(t, ok)
 
 	// Second exchange fails (single-use).
-	_, _, _, ok = s.ExchangeCode(code, "")
+	_, _, _, _, ok = s.ExchangeCode(code, "")
 	assert.False(t, ok)
 }
 
 func TestOAuthStore_InMemory_InvalidCode(t *testing.T) {
 	s := NewOAuthStore(nil)
 
-	_, _, _, ok := s.ExchangeCode("nonexistent", "")
+	_, _, _, _, ok := s.ExchangeCode("nonexistent", "")
 	assert.False(t, ok)
 }
 
@@ -88,11 +88,11 @@ func TestOAuthStore_InMemory_ExpiredCode(t *testing.T) {
 	s := NewOAuthStore(nil)
 	s.codeTTL = 1 * time.Nanosecond
 
-	code := s.CreateCode("sk-test-key", "http://127.0.0.1:9999/cb", "", "")
+	code := s.CreateCode("sk-test-key", "http://127.0.0.1:9999/cb", "", "", "")
 	require.NotEmpty(t, code)
 	time.Sleep(time.Nanosecond)
 
-	_, _, _, ok := s.ExchangeCode(code, "")
+	_, _, _, _, ok := s.ExchangeCode(code, "")
 	assert.False(t, ok)
 }
 
@@ -102,7 +102,7 @@ func TestOAuthStore_InMemory_GetCode(t *testing.T) {
 	c := s.GetCode("nonexistent")
 	assert.Nil(t, c)
 
-	code := s.CreateCode("sk-test-key", "http://127.0.0.1:9999/cb", testChallenge, "state-1")
+	code := s.CreateCode("sk-test-key", "http://127.0.0.1:9999/cb", testChallenge, "state-1", "")
 	require.NotEmpty(t, code)
 
 	c = s.GetCode(code)
@@ -130,7 +130,7 @@ func TestOAuthStore_InMemory_SetCodeDelete(t *testing.T) {
 func TestOAuthStore_InMemory_DeleteRequest(t *testing.T) {
 	s := NewOAuthStore(nil)
 
-	id := s.CreateRequest("client-1", "http://127.0.0.1:9999/cb", "", "")
+	id := s.CreateRequest("client-1", "http://127.0.0.1:9999/cb", "", "", "")
 	require.NotEmpty(t, id)
 
 	req := s.GetRequest(id)
@@ -146,9 +146,9 @@ func TestOAuthStore_InMemory_Cleanup(t *testing.T) {
 	s.requestTTL = 1 * time.Nanosecond
 	s.codeTTL = 1 * time.Nanosecond
 
-	id := s.CreateRequest("client-1", "http://127.0.0.1:9999/cb", "", "")
+	id := s.CreateRequest("client-1", "http://127.0.0.1:9999/cb", "", "", "")
 	require.NotEmpty(t, id)
-	code := s.CreateCode("sk-test-key", "http://127.0.0.1:9999/cb", "", "")
+	code := s.CreateCode("sk-test-key", "http://127.0.0.1:9999/cb", "", "", "")
 	require.NotEmpty(t, code)
 
 	time.Sleep(time.Nanosecond)
@@ -175,7 +175,7 @@ func TestOAuthStore_SQLite_CreateAndGetRequest(t *testing.T) {
 	database := dbtest.New(t)
 	s := NewOAuthStore(database)
 
-	id := s.CreateRequest("client-1", "http://127.0.0.1:9999/cb", testChallenge, "state-1")
+	id := s.CreateRequest("client-1", "http://127.0.0.1:9999/cb", testChallenge, "state-1", "")
 	require.NotEmpty(t, id)
 
 	req := s.GetRequest(id)
@@ -190,10 +190,10 @@ func TestOAuthStore_SQLite_CreateAndExchangeCode(t *testing.T) {
 	database := dbtest.New(t)
 	s := NewOAuthStore(database)
 
-	code := s.CreateCode("sk-test-key", "http://127.0.0.1:9999/cb", testChallenge, "state-1")
+	code := s.CreateCode("sk-test-key", "http://127.0.0.1:9999/cb", testChallenge, "state-1", "")
 	require.NotEmpty(t, code)
 
-	apiKey, redirectURI, state, ok := s.ExchangeCode(code, testVerifier)
+	apiKey, redirectURI, state, _, ok := s.ExchangeCode(code, testVerifier)
 	assert.True(t, ok)
 	assert.Equal(t, "sk-test-key", apiKey)
 	assert.Equal(t, "http://127.0.0.1:9999/cb", redirectURI)
@@ -204,15 +204,15 @@ func TestOAuthStore_SQLite_CodeReplay(t *testing.T) {
 	database := dbtest.New(t)
 	s := NewOAuthStore(database)
 
-	code := s.CreateCode("sk-test-key", "http://127.0.0.1:9999/cb", "", "")
+	code := s.CreateCode("sk-test-key", "http://127.0.0.1:9999/cb", "", "", "")
 	require.NotEmpty(t, code)
 
 	// First exchange succeeds.
-	_, _, _, ok := s.ExchangeCode(code, "")
+	_, _, _, _, ok := s.ExchangeCode(code, "")
 	assert.True(t, ok)
 
 	// Second exchange fails (single-use enforcement via DELETE).
-	_, _, _, ok = s.ExchangeCode(code, "")
+	_, _, _, _, ok = s.ExchangeCode(code, "")
 	assert.False(t, ok)
 }
 
@@ -220,7 +220,7 @@ func TestOAuthStore_SQLite_InvalidCode(t *testing.T) {
 	database := dbtest.New(t)
 	s := NewOAuthStore(database)
 
-	_, _, _, ok := s.ExchangeCode("nonexistent", "")
+	_, _, _, _, ok := s.ExchangeCode("nonexistent", "")
 	assert.False(t, ok)
 }
 
@@ -231,7 +231,7 @@ func TestOAuthStore_SQLite_GetCode(t *testing.T) {
 	c := s.GetCode("nonexistent")
 	assert.Nil(t, c)
 
-	code := s.CreateCode("sk-test-key", "http://127.0.0.1:9999/cb", testChallenge, "state-1")
+	code := s.CreateCode("sk-test-key", "http://127.0.0.1:9999/cb", testChallenge, "state-1", "")
 	require.NotEmpty(t, code)
 
 	c = s.GetCode(code)
@@ -261,7 +261,7 @@ func TestOAuthStore_SQLite_DeleteRequest(t *testing.T) {
 	database := dbtest.New(t)
 	s := NewOAuthStore(database)
 
-	id := s.CreateRequest("client-1", "http://127.0.0.1:9999/cb", "", "")
+	id := s.CreateRequest("client-1", "http://127.0.0.1:9999/cb", "", "", "")
 	require.NotEmpty(t, id)
 
 	req := s.GetRequest(id)
@@ -283,7 +283,7 @@ func TestOAuthStore_SQLite_ExpiredCode(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, _, _, ok := s.ExchangeCode("expired-code", testVerifier)
+	_, _, _, _, ok := s.ExchangeCode("expired-code", testVerifier)
 	assert.False(t, ok)
 }
 
@@ -323,10 +323,10 @@ func TestOAuthStore_SQLite_PersistenceAcrossRestarts(t *testing.T) {
 	// Phase 1: Create data with first store instance.
 	s1 := NewOAuthStore(database)
 
-	id := s1.CreateRequest("client-persist", "http://127.0.0.1:9999/cb", testChallenge, "state-persist")
+	id := s1.CreateRequest("client-persist", "http://127.0.0.1:9999/cb", testChallenge, "state-persist", "")
 	require.NotEmpty(t, id, "CreateRequest should succeed")
 
-	code := s1.CreateCode("sk-persist-key", "http://127.0.0.1:9999/cb", testChallenge, "state-persist")
+	code := s1.CreateCode("sk-persist-key", "http://127.0.0.1:9999/cb", testChallenge, "state-persist", "")
 	require.NotEmpty(t, code, "CreateCode should succeed")
 
 	// Close the first store (simulates a restart).
@@ -355,14 +355,14 @@ func TestOAuthStore_SQLite_PersistenceAcrossRestarts(t *testing.T) {
 	assert.Equal(t, testChallenge, c.CodeChallenge)
 
 	// Exchange the code on the second store.
-	apiKey, redirectURI, state, ok := s2.ExchangeCode(code, testVerifier)
+	apiKey, redirectURI, state, _, ok := s2.ExchangeCode(code, testVerifier)
 	assert.True(t, ok, "code should be exchangeable on second store")
 	assert.Equal(t, "sk-persist-key", apiKey)
 	assert.Equal(t, "http://127.0.0.1:9999/cb", redirectURI)
 	assert.Equal(t, "state-persist", state)
 
 	// Code is consumed — replay fails.
-	_, _, _, ok = s2.ExchangeCode(code, testVerifier)
+	_, _, _, _, ok = s2.ExchangeCode(code, testVerifier)
 	assert.False(t, ok, "replay should fail after exchange")
 }
 
@@ -374,7 +374,7 @@ func TestOAuthStore_NilDB_CreateRequest(t *testing.T) {
 	s := NewOAuthStore(nil)
 
 	// In-memory fallback works for CreateRequest.
-	id := s.CreateRequest("client-1", "http://127.0.0.1:9999/cb", "challenge", "")
+	id := s.CreateRequest("client-1", "http://127.0.0.1:9999/cb", "challenge", "", "")
 	assert.NotEmpty(t, id)
 }
 
@@ -393,11 +393,11 @@ func TestOAuthStore_SQLite_EmptyCodeChallenge(t *testing.T) {
 	database := dbtest.New(t)
 	s := NewOAuthStore(database)
 
-	code := s.CreateCode("sk-test-key", "http://127.0.0.1:9999/cb", "", "state-1")
+	code := s.CreateCode("sk-test-key", "http://127.0.0.1:9999/cb", "", "state-1", "")
 	require.NotEmpty(t, code)
 
 	// No PKCE challenge — exchange should succeed without verifier.
-	apiKey, _, _, ok := s.ExchangeCode(code, "")
+	apiKey, _, _, _, ok := s.ExchangeCode(code, "")
 	assert.True(t, ok)
 	assert.Equal(t, "sk-test-key", apiKey)
 }
@@ -406,10 +406,10 @@ func TestOAuthStore_SQLite_EmptyRedirectURI(t *testing.T) {
 	database := dbtest.New(t)
 	s := NewOAuthStore(database)
 
-	code := s.CreateCode("sk-test-key", "", testChallenge, "")
+	code := s.CreateCode("sk-test-key", "", testChallenge, "", "")
 	require.NotEmpty(t, code)
 
-	apiKey, redirectURI, state, ok := s.ExchangeCode(code, testVerifier)
+	apiKey, redirectURI, state, _, ok := s.ExchangeCode(code, testVerifier)
 	assert.True(t, ok)
 	assert.Equal(t, "sk-test-key", apiKey)
 	assert.Empty(t, redirectURI)

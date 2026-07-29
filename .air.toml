@@ -2,7 +2,7 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-  cmd = "go build -o ./tmp/ilter ./cmd/ilter"
+  cmd = "go build -ldflags \"-X github.com/ilter-ai/ilter/internal/version.Version=$(cat VERSION)\" -o ./tmp/ilter ./cmd/ilter"
   bin = "./tmp/ilter"
   args_bin = ["serve"]
   include_ext = ["go"]

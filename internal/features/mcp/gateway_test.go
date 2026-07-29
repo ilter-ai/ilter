@@ -705,3 +705,96 @@ func TestGateway_Dispatch_ToolsCall_UnsupportedTransport(t *testing.T) {
 		t.Fatalf("expected ErrorCodeInternal (nil executor), got %d", resp.Error.Code)
 	}
 }
+
+func TestGateway_Dispatch_Initialize_PerVersion(t *testing.T) {
+	for _, id := range []string{"2024-11-05", "2025-03-26"} {
+		gw := newTestGateway(nil, nil)
+		rctx := emptyRctx()
+
+		params, _ := json.Marshal(InitializeParams{ProtocolVersion: id})
+		resp := gw.Dispatch(&JSONRPCRequest{
+			JSONRPC: JSONRPCVersion,
+			ID:      testID("1"),
+			Method:  "initialize",
+			Params:  params,
+		}, rctx)
+		if resp.Error != nil {
+			t.Fatalf("version %q: unexpected error: %+v", id, resp.Error)
+		}
+		if string(rctx.ProtocolVersion) != id {
+			t.Errorf("version %q: rctx.ProtocolVersion = %q, want %q", id, rctx.ProtocolVersion, id)
+		}
+	}
+}
+
+// TestGateway_Dispatch_Initialize_2026GracefullyDegrades mirrors the Hub
+// behavior: 2026-07-28 removed the initialize handshake entirely, so a
+// client explicitly requesting it via the legacy method degrades to the
+// newest version that still defines initialize (2025-03-26) rather than
+// erroring.
+func TestGateway_Dispatch_Initialize_2026GracefullyDegrades(t *testing.T) {
+	gw := newTestGateway(nil, nil)
+	rctx := emptyRctx()
+
+	params, _ := json.Marshal(InitializeParams{ProtocolVersion: "2026-07-28"})
+	resp := gw.Dispatch(&JSONRPCRequest{
+		JSONRPC: JSONRPCVersion,
+		ID:      testID("1"),
+		Method:  "initialize",
+		Params:  params,
+	}, rctx)
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %+v", resp.Error)
+	}
+	if rctx.ProtocolVersion != "2025-03-26" {
+		t.Errorf("rctx.ProtocolVersion = %q, want 2025-03-26 (newest version that still defines initialize)", rctx.ProtocolVersion)
+	}
+}
+
+// TestGateway_Dispatch_PerRequestMeta_2026Style exercises the genuine
+// 2026-07-28 stateless flow: no initialize call at all, every request
+// carries its own `_meta.protocolVersion`. tools/list must come back
+// wrapped with CacheableResult fields (ttlMs/cacheScope) only in this case.
+func TestGateway_Dispatch_PerRequestMeta_2026Style(t *testing.T) {
+	gw := newTestGateway(nil, nil)
+	rctx := emptyRctx() // never touched by initialize — rctx.ProtocolVersion stays ""
+
+	resp := gw.Dispatch(&JSONRPCRequest{
+		JSONRPC: JSONRPCVersion,
+		ID:      testID("1"),
+		Method:  "tools/list",
+		Params:  json.RawMessage(`{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}`),
+	}, rctx)
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %+v", resp.Error)
+	}
+
+	var decoded map[string]json.RawMessage
+	if err := json.Unmarshal(resp.Result, &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if _, ok := decoded["ttlMs"]; !ok {
+		t.Error("expected ttlMs (CacheableResult) in a 2026-07-28 per-request _meta call, got none")
+	}
+}
+
+func TestGateway_Dispatch_ToolsList_PlainShapeWithoutMeta(t *testing.T) {
+	gw := newTestGateway(nil, nil)
+
+	resp := gw.Dispatch(&JSONRPCRequest{
+		JSONRPC: JSONRPCVersion,
+		ID:      testID("1"),
+		Method:  "tools/list",
+	}, emptyRctx())
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %+v", resp.Error)
+	}
+
+	var decoded map[string]json.RawMessage
+	if err := json.Unmarshal(resp.Result, &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if _, ok := decoded["ttlMs"]; ok {
+		t.Error("a request with no version signal at all must default to 2025-03-26 shape (no ttlMs), not 2026-07-28")
+	}
+}

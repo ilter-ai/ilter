@@ -20,6 +20,7 @@ import (
 func (h *MCPHandler) ListServers(w http.ResponseWriter, _ *http.Request) {
 	rows, err := h.store.DB.Query(`SELECT id, name, description, transport, url, command, args, env,
 		handler, enabled, timeout_ms, max_retries, auth_type, auth_key_env, created_at, updated_at,
+		protocol_version,
 		(SELECT COUNT(*) FROM mcp_tools WHERE server_id = mcp_servers.id) AS tools_count
 		FROM mcp_servers ORDER BY name`)
 	if err != nil {
@@ -30,12 +31,12 @@ func (h *MCPHandler) ListServers(w http.ResponseWriter, _ *http.Request) {
 
 	servers := make([]map[string]any, 0)
 	for rows.Next() {
-		var id, name, description, transport, url, command, args, env, handler, authType, authKeyEnv, createdAt, updatedAt sql.NullString
+		var id, name, description, transport, url, command, args, env, handler, authType, authKeyEnv, createdAt, updatedAt, protocolVersion sql.NullString
 		var enabled, timeoutMs, maxRetries, toolsCount sql.NullInt64
 
 		if err := rows.Scan(&id, &name, &description, &transport, &url, &command, &args, &env,
 			&handler, &enabled, &timeoutMs, &maxRetries, &authType, &authKeyEnv, &createdAt, &updatedAt,
-			&toolsCount); err != nil {
+			&protocolVersion, &toolsCount); err != nil {
 			continue
 		}
 
@@ -63,6 +64,7 @@ func (h *MCPHandler) ListServers(w http.ResponseWriter, _ *http.Request) {
 			"created_at":        nullToEmpty(createdAt),
 			"updated_at":        nullToEmpty(updatedAt),
 			"tools_count":       toolsCount.Int64,
+			"protocol_version":  nullToEmptyOr(protocolVersion, "auto"),
 		}
 		servers = append(servers, srv)
 	}
@@ -79,15 +81,16 @@ func (h *MCPHandler) GetServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var name, description, transport, url, command, args, env, handler, authType, authKeyEnv, createdAt, updatedAt sql.NullString
+	var name, description, transport, url, command, args, env, handler, authType, authKeyEnv, createdAt, updatedAt, protocolVersion sql.NullString
 	var enabled, timeoutMs, maxRetries, toolsCount sql.NullInt64
 
 	err := h.store.DB.QueryRow(`SELECT id, name, description, transport, url, command, args, env,
 		handler, enabled, timeout_ms, max_retries, auth_type, auth_key_env, created_at, updated_at,
+		protocol_version,
 		(SELECT COUNT(*) FROM mcp_tools WHERE server_id = mcp_servers.id) AS tools_count
 		FROM mcp_servers WHERE id = ?`, id).Scan(&id, &name, &description, &transport, &url, &command, &args, &env,
 		&handler, &enabled, &timeoutMs, &maxRetries, &authType, &authKeyEnv, &createdAt, &updatedAt,
-		&toolsCount)
+		&protocolVersion, &toolsCount)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			model.WriteJSONError(w, http.StatusNotFound, "not_found", "Server not found")
@@ -122,26 +125,28 @@ func (h *MCPHandler) GetServer(w http.ResponseWriter, r *http.Request) {
 		"created_at":        nullToEmpty(createdAt),
 		"updated_at":        nullToEmpty(updatedAt),
 		"tools_count":       toolsCount.Int64,
+		"protocol_version":  nullToEmptyOr(protocolVersion, "auto"),
 	})
 }
 
 func (h *MCPHandler) CreateServer(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var req struct {
-		ID          string `json:"id"`
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		Transport   string `json:"transport"`
-		URL         string `json:"url,omitempty"`
-		Command     string `json:"command,omitempty"`
-		Args        string `json:"args,omitempty"`
-		Env         string `json:"env,omitempty"`
-		Handler     string `json:"handler,omitempty"`
-		Enabled     bool   `json:"enabled"`
-		TimeoutMs   int    `json:"timeout_ms"`
-		MaxRetries  int    `json:"max_retries"`
-		AuthType    string `json:"auth_type"`
-		AuthKeyEnv  string `json:"auth_key_env"`
+		ID              string `json:"id"`
+		Name            string `json:"name"`
+		Description     string `json:"description"`
+		Transport       string `json:"transport"`
+		URL             string `json:"url,omitempty"`
+		Command         string `json:"command,omitempty"`
+		Args            string `json:"args,omitempty"`
+		Env             string `json:"env,omitempty"`
+		Handler         string `json:"handler,omitempty"`
+		Enabled         bool   `json:"enabled"`
+		TimeoutMs       int    `json:"timeout_ms"`
+		MaxRetries      int    `json:"max_retries"`
+		AuthType        string `json:"auth_type"`
+		AuthKeyEnv      string `json:"auth_key_env"`
+		ProtocolVersion string `json:"protocol_version,omitempty"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -165,13 +170,16 @@ func (h *MCPHandler) CreateServer(w http.ResponseWriter, r *http.Request) {
 	if req.TimeoutMs == 0 {
 		req.TimeoutMs = 30000
 	}
+	if req.ProtocolVersion == "" {
+		req.ProtocolVersion = "auto"
+	}
 
 	_, err := h.store.DB.Exec(`INSERT INTO mcp_servers
-		(id, name, description, transport, url, command, args, env, handler, enabled, timeout_ms, max_retries, auth_type, auth_key_env)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		(id, name, description, transport, url, command, args, env, handler, enabled, timeout_ms, max_retries, auth_type, auth_key_env, protocol_version)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		req.ID, req.Name, req.Description, req.Transport, req.URL, req.Command,
 		req.Args, req.Env, req.Handler, boolToInt(req.Enabled), req.TimeoutMs,
-		req.MaxRetries, req.AuthType, req.AuthKeyEnv)
+		req.MaxRetries, req.AuthType, req.AuthKeyEnv, req.ProtocolVersion)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			model.WriteJSONError(w, http.StatusConflict, "duplicate_server", "Server ID already exists")
@@ -221,19 +229,20 @@ func (h *MCPHandler) UpdateServer(w http.ResponseWriter, r *http.Request) {
 
 	defer r.Body.Close()
 	var req struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		Transport   string `json:"transport"`
-		URL         string `json:"url,omitempty"`
-		Command     string `json:"command,omitempty"`
-		Args        string `json:"args,omitempty"`
-		Env         string `json:"env,omitempty"`
-		Handler     string `json:"handler,omitempty"`
-		Enabled     *bool  `json:"enabled,omitempty"`
-		TimeoutMs   *int   `json:"timeout_ms,omitempty"`
-		MaxRetries  *int   `json:"max_retries,omitempty"`
-		AuthType    string `json:"auth_type,omitempty"`
-		AuthKeyEnv  string `json:"auth_key_env,omitempty"`
+		Name            string `json:"name"`
+		Description     string `json:"description"`
+		Transport       string `json:"transport"`
+		URL             string `json:"url,omitempty"`
+		Command         string `json:"command,omitempty"`
+		Args            string `json:"args,omitempty"`
+		Env             string `json:"env,omitempty"`
+		Handler         string `json:"handler,omitempty"`
+		Enabled         *bool  `json:"enabled,omitempty"`
+		TimeoutMs       *int   `json:"timeout_ms,omitempty"`
+		MaxRetries      *int   `json:"max_retries,omitempty"`
+		AuthType        string `json:"auth_type,omitempty"`
+		AuthKeyEnv      string `json:"auth_key_env,omitempty"`
+		ProtocolVersion string `json:"protocol_version,omitempty"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -307,6 +316,10 @@ func (h *MCPHandler) UpdateServer(w http.ResponseWriter, r *http.Request) {
 	if req.AuthKeyEnv != "" {
 		sets = append(sets, "auth_key_env = ?")
 		args = append(args, req.AuthKeyEnv)
+	}
+	if req.ProtocolVersion != "" {
+		sets = append(sets, "protocol_version = ?")
+		args = append(args, req.ProtocolVersion)
 	}
 
 	sets = append(sets, "updated_at = datetime('now')")
@@ -423,39 +436,45 @@ func (h *MCPHandler) DeleteServer(w http.ResponseWriter, r *http.Request) {
 }
 
 func mcpServerConfigFromRequest(req struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Transport   string `json:"transport"`
-	URL         string `json:"url,omitempty"`
-	Command     string `json:"command,omitempty"`
-	Args        string `json:"args,omitempty"`
-	Env         string `json:"env,omitempty"`
-	Handler     string `json:"handler,omitempty"`
-	Enabled     bool   `json:"enabled"`
-	TimeoutMs   int    `json:"timeout_ms"`
-	MaxRetries  int    `json:"max_retries"`
-	AuthType    string `json:"auth_type"`
-	AuthKeyEnv  string `json:"auth_key_env"`
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	Description     string `json:"description"`
+	Transport       string `json:"transport"`
+	URL             string `json:"url,omitempty"`
+	Command         string `json:"command,omitempty"`
+	Args            string `json:"args,omitempty"`
+	Env             string `json:"env,omitempty"`
+	Handler         string `json:"handler,omitempty"`
+	Enabled         bool   `json:"enabled"`
+	TimeoutMs       int    `json:"timeout_ms"`
+	MaxRetries      int    `json:"max_retries"`
+	AuthType        string `json:"auth_type"`
+	AuthKeyEnv      string `json:"auth_key_env"`
+	ProtocolVersion string `json:"protocol_version,omitempty"`
 },
 ) config.MCPServerConfig {
 	timeout := "30s"
 	if req.TimeoutMs > 0 {
 		timeout = fmt.Sprintf("%dms", req.TimeoutMs)
 	}
+	protocolVersion := req.ProtocolVersion
+	if protocolVersion == "" {
+		protocolVersion = "auto"
+	}
 	cfg := config.MCPServerConfig{
-		ID:          req.ID,
-		Name:        req.Name,
-		Description: req.Description,
-		Transport:   req.Transport,
-		URL:         req.URL,
-		Command:     req.Command,
-		Handler:     req.Handler,
-		Enabled:     req.Enabled,
-		Timeout:     timeout,
-		MaxRetries:  req.MaxRetries,
-		AuthType:    req.AuthType,
-		AuthKeyEnv:  req.AuthKeyEnv,
+		ID:              req.ID,
+		Name:            req.Name,
+		Description:     req.Description,
+		Transport:       req.Transport,
+		URL:             req.URL,
+		Command:         req.Command,
+		Handler:         req.Handler,
+		Enabled:         req.Enabled,
+		Timeout:         timeout,
+		MaxRetries:      req.MaxRetries,
+		AuthType:        req.AuthType,
+		AuthKeyEnv:      req.AuthKeyEnv,
+		ProtocolVersion: protocolVersion,
 	}
 	if req.Args != "" {
 		if err := json.Unmarshal([]byte(req.Args), &cfg.Args); err != nil {
@@ -471,16 +490,16 @@ func mcpServerConfigFromRequest(req struct {
 }
 
 func readServerConfigFromDB(store *db.SQLiteStore, id string) *config.MCPServerConfig {
-	var name, desc, transport, url, command, args, env, handler, authType, authKeyEnv sql.NullString
+	var name, desc, transport, url, command, args, env, handler, authType, authKeyEnv, protocolVersion sql.NullString
 	var enabled, timeoutMs, maxRetries sql.NullInt64
 
 	err := store.DB.QueryRow(
 		`SELECT id, name, description, transport, url, command, args, env,
-		       handler, enabled, timeout_ms, max_retries, auth_type, auth_key_env
+		       handler, enabled, timeout_ms, max_retries, auth_type, auth_key_env, protocol_version
 		 FROM mcp_servers WHERE id = ?`, id,
 	).Scan(&id, &name, &desc, &transport, &url, &command,
 		&args, &env, &handler, &enabled, &timeoutMs, &maxRetries,
-		&authType, &authKeyEnv)
+		&authType, &authKeyEnv, &protocolVersion)
 	if err != nil {
 		slog.Warn("Failed to read server from DB for registry sync", "server_id", id, "error", err)
 		return nil
@@ -492,18 +511,19 @@ func readServerConfigFromDB(store *db.SQLiteStore, id string) *config.MCPServerC
 	}
 
 	cfg := &config.MCPServerConfig{
-		ID:          id,
-		Name:        nullToEmpty(name),
-		Description: nullToEmpty(desc),
-		Transport:   nullToEmpty(transport),
-		URL:         nullToEmpty(url),
-		Command:     nullToEmpty(command),
-		Handler:     nullToEmpty(handler),
-		Enabled:     enabled.Int64 == 1,
-		Timeout:     timeout,
-		MaxRetries:  int(maxRetries.Int64),
-		AuthType:    nullToEmpty(authType),
-		AuthKeyEnv:  nullToEmpty(authKeyEnv),
+		ID:              id,
+		Name:            nullToEmpty(name),
+		Description:     nullToEmpty(desc),
+		Transport:       nullToEmpty(transport),
+		URL:             nullToEmpty(url),
+		Command:         nullToEmpty(command),
+		Handler:         nullToEmpty(handler),
+		Enabled:         enabled.Int64 == 1,
+		Timeout:         timeout,
+		MaxRetries:      int(maxRetries.Int64),
+		AuthType:        nullToEmpty(authType),
+		AuthKeyEnv:      nullToEmpty(authKeyEnv),
+		ProtocolVersion: nullToEmptyOr(protocolVersion, "auto"),
 	}
 
 	if argsStr := nullToEmpty(args); argsStr != "" {
