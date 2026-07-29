@@ -10,6 +10,8 @@
 [![GitHub release](https://img.shields.io/github/v/release/ilter-ai/ilter)](https://github.com/ilter-ai/ilter/releases)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/ilter-ai/ilter)](go.mod)
 [![License](https://img.shields.io/badge/license-Apache%202.0%20with%20Commons%20Clause-blue)](LICENSE)
+
+<a href="https://www.producthunt.com/products/ilter?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-ilter" target="_blank" rel="noopener noreferrer"><img alt="ILTER - Self-hosted AI gateway in a single binary | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1210064&theme=light&t=1785440130124"></a>
 </div>
 
 
