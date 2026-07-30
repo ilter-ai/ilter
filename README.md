@@ -40,6 +40,14 @@ Deploying AI models to production brings critical operational challenges such as
 # Metrics: http://localhost:9192/metrics
 ```
 
+### Set Up with an AI Agent
+
+Paste this into Claude Code, Cursor, or any coding agent:
+
+> Set up ILTER (AI gateway) in this project by following the instructions here: https://raw.githubusercontent.com/ilter-ai/ilter/main/docs/agent-setup.md
+
+The agent picks binary vs. Docker, generates the admin key, reuses any provider key already in your project, starts the gateway, and points your app's `base_url` at it.
+
 ---
 
 ## Dashboard
