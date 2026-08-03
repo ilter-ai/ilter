@@ -15,6 +15,8 @@
 
 Deploying AI models to production brings critical operational challenges such as unpredictable costs, data privacy risks, and API outages. **ILTER** is an independent gateway that sits between your application and AI providers; transforming your entire AI traffic into a secure, optimized, and fully controlled infrastructure without requiring any architectural changes in your code.
 
+>*ILTER is Turkish for "one who watches over, protects, and keeps order" — fitting for a gateway that monitors, guards, and governs every request flowing through your AI stack.*
+
 *   🧩 **MCP Gateway & Marketplace:** Connect AI to your APIs, CRM, or MCP servers — zero changes required.
 *   ⚡ **Smart Router:** Every request is scored for complexity in real time and routed to the right model tier.
 *   🌐 **Smart Fallback:** Provider down or rate-limited? ILTER fails over to another key or provider, no changes.
