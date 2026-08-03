@@ -2,13 +2,60 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ilter-ai/ilter/internal/config"
+	"github.com/ilter-ai/ilter/internal/model"
 	"github.com/ilter-ai/ilter/internal/model/catalog"
 )
+
+func TestAnthropicProvider_TransformRequest_TranslatesOpenAIImageURLBlock(t *testing.T) {
+	cfg := config.ProviderConfig{
+		Name:    "test-anthropic",
+		Type:    "anthropic",
+		BaseURL: "https://api.anthropic.com/v1",
+		APIKey:  "sk-ant-test",
+	}
+	p := NewAnthropicProvider(cfg)
+
+	req := &model.ChatCompletionRequest{
+		Model: "claude-opus-4",
+		Messages: []model.Message{
+			{Role: "user", Content: []any{
+				map[string]any{"type": "text", "text": "what is this?"},
+				map[string]any{
+					"type":      "image_url",
+					"image_url": map[string]any{"url": "data:image/png;base64,QUJD"},
+				},
+			}},
+		},
+	}
+
+	httpReq, err := p.TransformRequest(context.Background(), req)
+	require.NoError(t, err)
+
+	var body map[string]any
+	err = json.NewDecoder(httpReq.Body).Decode(&body)
+	require.NoError(t, err)
+
+	blocks := body["messages"].([]any)[0].(map[string]any)["content"].([]any)
+	imgBlock := blocks[1].(map[string]any)
+	assert.Equal(t, "image", imgBlock["type"])
+	source := imgBlock["source"].(map[string]any)
+	assert.Equal(t, "base64", source["type"])
+	assert.Equal(t, "image/png", source["media_type"])
+	assert.Equal(t, "QUJD", source["data"])
+
+	// Original request must be untouched (shared across load-balancer retries).
+	origBlock := req.Messages[0].Content.([]any)[1].(map[string]any)
+	assert.Equal(t, "image_url", origBlock["type"])
+}
 
 func TestAnthropicProvider_DiscoverModels_Success(t *testing.T) {
 	// Setup mock server

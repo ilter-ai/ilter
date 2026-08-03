@@ -110,11 +110,11 @@ func seedUsageDaily(db *sql.DB, rng *rand.Rand, keyIDs []string, today time.Time
 	}
 	defer stmt.Close()
 
-	for day := 0; day < 30; day++ {
+	for day := range 30 {
 		date := today.Add(-time.Duration(day) * 24 * time.Hour).Format("2006-01-02")
 		for _, keyID := range keyIDs {
 			nModels := 1 + rng.Intn(4)
-			for mi := 0; mi < nModels; mi++ {
+			for range nModels {
 				model := models[rng.Intn(len(models))]
 				provider := providerOf[model]
 				reqCount := 1 + rng.Intn(80)
@@ -122,10 +122,7 @@ func seedUsageDaily(db *sql.DB, rng *rand.Rand, keyIDs []string, today time.Time
 				completionTok := 50 + rng.Intn(4000)
 				totalTok := promptTok + completionTok
 				cost := float64(promptTok)*0.0000025 + float64(completionTok)*0.00001
-				cacheDiv := reqCount / 3
-				if cacheDiv < 1 {
-					cacheDiv = 1
-				}
+				cacheDiv := max(reqCount/3, 1)
 				cacheHits := rng.Intn(cacheDiv)
 
 				_, err = stmt.Exec(keyID, date, model, provider,
@@ -154,7 +151,7 @@ func seedLoopEvents(db *sql.DB, rng *rand.Rand, keyIDs []string, _ time.Time) er
 	defer stmt.Close()
 
 	n := 20 + rng.Intn(11)
-	for i := 0; i < n; i++ {
+	for range n {
 		detectedAt := time.Now().Add(-seedTimestampOffset(rng))
 		keyID := keyIDs[rng.Intn(len(keyIDs))]
 		ip := fmt.Sprintf("192.168.%d.%d", rng.Intn(256), 1+rng.Intn(254))
@@ -225,7 +222,7 @@ func seedPIIEvents(db *sql.DB, rng *rand.Rand, keyIDs []string, _ time.Time) err
 	defer stmt.Close()
 
 	n := 30 + rng.Intn(21)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		ts := time.Now().Add(-seedTimestampOffset(rng))
 		keyID := keyIDs[rng.Intn(len(keyIDs))]
 		requestID := 10000 + rng.Intn(90000)
@@ -278,7 +275,7 @@ func seedGuardrailEvents(db *sql.DB, rng *rand.Rand, keyIDs []string, _ time.Tim
 	defer stmt.Close()
 
 	n := 40 + rng.Intn(11)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		ts := time.Now().Add(-seedTimestampOffset(rng))
 		keyID := keyIDs[rng.Intn(len(keyIDs))]
 		evt := eventTypes[rng.Intn(len(eventTypes))]
@@ -389,7 +386,7 @@ func seedMCPAuditLog(db *sql.DB, rng *rand.Rand, keyIDs []string, _ time.Time) e
 	defer stmt.Close()
 
 	n := 50 + rng.Intn(51)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		serverID := serverIDs[rng.Intn(len(serverIDs))]
 
 		var tool, method, params string

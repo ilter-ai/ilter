@@ -23,7 +23,7 @@ func (m *MCPInjectMiddleware) toolCallLoop(w http.ResponseWriter, r *http.Reques
 
 	totalToolCount := 0
 	markerOffset := 0
-	for turn := 0; turn < maxTurns; turn++ {
+	for turn := range maxTurns {
 		turnStart := time.Now()
 		curReq := *req
 		if turn > 0 && curReq.ToolChoice != nil && curReq.ToolChoice != "auto" {

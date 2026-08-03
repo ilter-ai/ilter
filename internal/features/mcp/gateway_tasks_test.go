@@ -65,7 +65,7 @@ func TestGateway_TasksGet_MissingTaskID(t *testing.T) {
 func TestGateway_TasksGet_CompletedTask(t *testing.T) {
 	gw := newTestGatewayWithStore(t)
 
-	id, err := gw.taskManager.RunAsync("key1", "srv1", "slow-tool", nil, func(ctx context.Context, taskID string) (json.RawMessage, error) {
+	id, err := gw.taskManager.RunAsync("key1", "srv1", "slow-tool", nil, func(_ context.Context, _ string) (json.RawMessage, error) {
 		return json.RawMessage(`{"content":[{"type":"text","text":"ok"}]}`), nil
 	})
 	if err != nil {
@@ -184,7 +184,7 @@ func TestGateway_TasksUpdate_UnknownTask(t *testing.T) {
 // finishes in the background.
 func TestGateway_ToolsCall_PromotesLongRunningToTask(t *testing.T) {
 	serverID := "promote-slow-server"
-	if err := inline.RegisterTools(serverID, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	if err := inline.RegisterTools(serverID, func(_ context.Context, _ map[string]any) (any, error) {
 		time.Sleep(150 * time.Millisecond)
 		return map[string]any{"done": true}, nil
 	}, nil); err != nil {
@@ -259,7 +259,7 @@ func TestGateway_ToolsCall_PromotesLongRunningToTask(t *testing.T) {
 // last resort, not the default for 2026-07-28 sessions.
 func TestGateway_ToolsCall_FastToolNotPromoted(t *testing.T) {
 	serverID := "promote-fast-server"
-	if err := inline.RegisterTools(serverID, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	if err := inline.RegisterTools(serverID, func(_ context.Context, _ map[string]any) (any, error) {
 		return map[string]any{"done": true}, nil
 	}, nil); err != nil {
 		t.Fatalf("RegisterTools: %v", err)

@@ -114,11 +114,11 @@ func TestLoopDetectorIntegration(t *testing.T) {
 		t.Errorf("Expected status 429 for blocked request, got %d", rr2.Code)
 	}
 
-	var jsonErr map[string]interface{}
+	var jsonErr map[string]any
 	if err := json.Unmarshal(rr2.Body.Bytes(), &jsonErr); err != nil {
 		t.Fatalf("Failed to parse error response: %v", err)
 	}
-	errSub, ok := jsonErr["error"].(map[string]interface{})
+	errSub, ok := jsonErr["error"].(map[string]any)
 	if !ok {
 		t.Fatalf("Malformed error structure: %+v", jsonErr)
 	}

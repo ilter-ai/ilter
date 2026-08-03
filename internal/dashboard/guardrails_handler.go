@@ -184,10 +184,7 @@ type ListResponse struct {
 func (h *GuardrailsHandler) HandleGuardrailViolations(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	page := parseIntParam(q.Get("page"), 1)
-	limit := parseIntParam(q.Get("limit"), 50)
-	if limit > 500 {
-		limit = 500
-	}
+	limit := min(parseIntParam(q.Get("limit"), 50), 500)
 	offset := (page - 1) * limit
 
 	typeFilter := q.Get("type")

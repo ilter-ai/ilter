@@ -655,7 +655,7 @@ func toolMatchPattern(pattern, toolName string) bool {
 	}
 	if strings.HasPrefix(pattern, "[") {
 		t := strings.Trim(pattern, "[]")
-		for _, tname := range strings.Split(t, ",") {
+		for tname := range strings.SplitSeq(t, ",") {
 			tname = strings.Trim(tname, "\" ")
 			if tname == toolName {
 				return true
@@ -663,8 +663,8 @@ func toolMatchPattern(pattern, toolName string) bool {
 		}
 		return false
 	}
-	if strings.HasSuffix(pattern, "*") {
-		return strings.HasPrefix(toolName, strings.TrimSuffix(pattern, "*"))
+	if before, ok := strings.CutSuffix(pattern, "*"); ok {
+		return strings.HasPrefix(toolName, before)
 	}
 	return pattern == toolName
 }

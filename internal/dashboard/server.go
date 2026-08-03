@@ -325,7 +325,7 @@ func (s *Server) isAuthorized(token string) bool {
 	if jwtSecret == "" {
 		jwtSecret = "user-auth-dev-secret"
 	}
-	parsedToken, err := jwt.Parse(token, func(_ *jwt.Token) (interface{}, error) {
+	parsedToken, err := jwt.Parse(token, func(_ *jwt.Token) (any, error) {
 		return []byte(jwtSecret), nil
 	})
 	return err == nil && parsedToken.Valid

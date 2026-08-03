@@ -190,6 +190,49 @@ func TestOpenRouterProvider_TransformRequest_SetsHeaders(t *testing.T) {
 	assert.Equal(t, "ILTER Gateway", httpReq.Header.Get("X-Title"))
 }
 
+func TestOpenAIProvider_TransformRequest_TranslatesAnthropicImageBlock(t *testing.T) {
+	cfg := config.ProviderConfig{
+		Name:    "test-openai",
+		Type:    "openai",
+		BaseURL: "https://api.openai.com/v1",
+		APIKey:  "sk-test",
+	}
+	p := NewOpenAIProvider(cfg)
+
+	req := &model.ChatCompletionRequest{
+		Model: "gpt-4o",
+		Messages: []model.Message{
+			{Role: "user", Content: []any{
+				map[string]any{"type": "text", "text": "what is this?"},
+				map[string]any{
+					"type": "image",
+					"source": map[string]any{
+						"type":       "base64",
+						"media_type": "image/png",
+						"data":       "QUJD",
+					},
+				},
+			}},
+		},
+	}
+
+	httpReq, err := p.TransformRequest(context.Background(), req)
+	require.NoError(t, err)
+
+	var body map[string]any
+	err = json.NewDecoder(httpReq.Body).Decode(&body)
+	require.NoError(t, err)
+
+	blocks := body["messages"].([]any)[0].(map[string]any)["content"].([]any)
+	imgBlock := blocks[1].(map[string]any)
+	assert.Equal(t, "image_url", imgBlock["type"])
+	assert.Equal(t, "data:image/png;base64,QUJD", imgBlock["image_url"].(map[string]any)["url"])
+
+	// Original request must be untouched (shared across load-balancer retries).
+	origBlock := req.Messages[0].Content.([]any)[1].(map[string]any)
+	assert.Equal(t, "image", origBlock["type"])
+}
+
 func TestOpenAIProvider_TransformRequest_NilMessages(t *testing.T) {
 	cfg := config.ProviderConfig{
 		Name:    "test-openai",

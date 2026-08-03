@@ -99,8 +99,8 @@ func TestTransformerEstimateInputTokens(t *testing.T) {
 		{
 			name: "mixed content types — string and array",
 			messages: []model.Message{
-				{Role: "system", Content: "You are a helpful assistant."},                                // 5 words (period attached)
-				{Role: "user", Content: []interface{}{"hello", map[string]interface{}{"text": "world"}}}, // 2 words
+				{Role: "system", Content: "You are a helpful assistant."},                // 5 words (period attached)
+				{Role: "user", Content: []any{"hello", map[string]any{"text": "world"}}}, // 2 words
 			},
 			want: 9, // 7 words * 1.3 = 9.1 → int = 9
 		},
@@ -114,7 +114,7 @@ func TestTransformerEstimateInputTokens(t *testing.T) {
 		{
 			name: "array content with non-string non-map items",
 			messages: []model.Message{
-				{Role: "user", Content: []interface{}{42, true, 3.14}},
+				{Role: "user", Content: []any{42, true, 3.14}},
 			},
 			want: 5, // none contribute words → floor 4 → 4*1.3 = 5
 		},
@@ -436,7 +436,7 @@ func TestTransformerComputeCostEstimates(t *testing.T) {
 				CostPerOutputToken: 0.03,
 			},
 			selectedModel: "transformer-est-test-model",
-			maxTokens:     intPtr(500),
+			maxTokens:     new(500),
 			checkAltCost:  true,
 		},
 		{
@@ -449,7 +449,7 @@ func TestTransformerComputeCostEstimates(t *testing.T) {
 				CostPerOutputToken: 0.03,
 			},
 			selectedModel: "transformer-est-test-model",
-			maxTokens:     intPtr(0),
+			maxTokens:     new(0),
 			checkAltCost:  true,
 		},
 	}
@@ -482,8 +482,4 @@ func TestTransformerComputeCostEstimates(t *testing.T) {
 			}
 		})
 	}
-}
-
-func intPtr(i int) *int {
-	return &i
 }

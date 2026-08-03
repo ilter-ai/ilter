@@ -83,7 +83,7 @@ func TestRateLimitE2E_ExceedsRPM(t *testing.T) {
 	bodyBytes, _ := json.Marshal(reqBody)
 
 	// Request 1 & 2: should pass (within limit)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		req, _ := http.NewRequestWithContext(
 			setRateLimitCtx("500", 2),
 			"POST", "/v1/chat/completions", bytes.NewReader(bodyBytes),
@@ -109,9 +109,9 @@ func TestRateLimitE2E_ExceedsRPM(t *testing.T) {
 		t.Fatalf("expected 429 for rate limit exceeded, got %d: %s", rr.Code, rr.Body.String())
 	}
 
-	var errResp map[string]interface{}
+	var errResp map[string]any
 	_ = json.Unmarshal(rr.Body.Bytes(), &errResp)
-	if e, _ := errResp["error"].(map[string]interface{}); e["type"] != "rate_limit_exceeded" {
+	if e, _ := errResp["error"].(map[string]any); e["type"] != "rate_limit_exceeded" {
 		t.Errorf("expected rate_limit_exceeded type, got %v", e["type"])
 	}
 }
@@ -139,7 +139,7 @@ func TestRateLimitE2E_AdminBypass(t *testing.T) {
 	}
 	bodyBytes, _ := json.Marshal(reqBody)
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		// Admin key bypasses rate limiting
 		ctx := context.WithValue(context.Background(), reqmeta.KeyIDContextKey, "admin")
 		req, _ := http.NewRequestWithContext(
@@ -276,7 +276,7 @@ func TestRateLimitE2E_KeySpecificRateLimit(t *testing.T) {
 	bodyBytes, _ := json.Marshal(reqBody)
 
 	// Key 800 with RPM=2
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		req, _ := http.NewRequestWithContext(
 			setRateLimitCtx("800", 2),
 			"POST", "/v1/chat/completions", bytes.NewReader(bodyBytes),

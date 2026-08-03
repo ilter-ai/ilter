@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"regexp"
 	"sync/atomic"
@@ -105,9 +106,7 @@ func GetPIIMappings(ctx context.Context) map[string]string {
 	res := make(map[string]string)
 	state := GetPIIState(ctx)
 	if state != nil {
-		for k, v := range state.GetMappings() {
-			res[k] = v
-		}
+		maps.Copy(res, state.GetMappings())
 	}
 	return res
 }

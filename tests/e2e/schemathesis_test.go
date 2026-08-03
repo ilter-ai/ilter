@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 	"testing"
 )
 
@@ -56,13 +55,13 @@ func TestSchemathesis(t *testing.T) {
 	if err != nil || code != 200 {
 		t.Fatalf("Failed to create user key for Schemathesis: code %d, err: %v, body: %s", code, err, body)
 	}
-	var keyResp map[string]interface{}
+	var keyResp map[string]any
 	if err := json.Unmarshal([]byte(body), &keyResp); err != nil {
 		t.Fatalf("JSON decode error: %v, body: %s", err, body)
 	}
 	schemathesisUserKey, _ := keyResp["key"].(string)
-	if !strings.HasPrefix(schemathesisUserKey, "ilter_") {
-		t.Fatalf("Expected ilter_ prefix for key: %s", schemathesisUserKey)
+	if len(schemathesisUserKey) != 64 {
+		t.Fatalf("Expected 64-char hex key, got: %s", schemathesisUserKey)
 	}
 
 	runSchemathesis(t, "^/v1/.*", schemathesisUserKey, "http://127.0.0.1:8082")

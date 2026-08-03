@@ -54,7 +54,7 @@ func TestRedisBreaker_BreakerOpens_AndShortCircuits(t *testing.T) {
 	mr.Close()
 
 	// Exhaust failure threshold (5 consecutive failures)
-	for i := 0; i < 6; i++ {
+	for range 6 {
 		g.Do(context.Background(), func(ctx context.Context, cl *redis.Client) error {
 			return cl.Ping(ctx).Err()
 		})
@@ -75,7 +75,7 @@ func TestRedisBreaker_RecoversAfterBreakerHalfOpen(t *testing.T) {
 	mr.Close()
 
 	// Trip the breaker.
-	for i := 0; i < 6; i++ {
+	for range 6 {
 		g.Do(context.Background(), func(ctx context.Context, cl *redis.Client) error {
 			return cl.Ping(ctx).Err()
 		})

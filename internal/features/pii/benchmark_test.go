@@ -36,7 +36,7 @@ func BenchmarkPIIMasker_LongText(b *testing.B) {
 	defer state.Clear()
 
 	var parts []string
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		parts = append(parts, "This is a paragraph without any PII data. Just regular text content.")
 	}
 	parts = append(parts, "But here is an email: test@example.com")
@@ -240,7 +240,7 @@ func BenchmarkPipelineThroughput(b *testing.B) {
 
 func BenchmarkReversibleState_GetMappings(b *testing.B) {
 	state := NewReversibleState()
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		ph := "PII:EMAIL:" + strings.ToUpper(string([]byte{byte(i%6 + 65), byte(i%6 + 66), byte(i%6 + 67)}))
 		state.mappings[ph] = "test" + strings.Repeat("x", i%10) + "@example.com"
 	}

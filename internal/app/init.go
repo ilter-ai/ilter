@@ -26,7 +26,7 @@ import (
 
 type redisLogger struct{}
 
-func (redisLogger) Printf(ctx context.Context, format string, v ...interface{}) {
+func (redisLogger) Printf(ctx context.Context, format string, v ...any) {
 	slog.DebugContext(ctx, fmt.Sprintf(format, v...), "component", "redis")
 }
 

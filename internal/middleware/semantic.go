@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"sync/atomic"
 
@@ -105,9 +106,9 @@ func (c *SemanticCacheMiddleware) Handler(next http.Handler) http.Handler {
 		// Use only the last user message for semantic embedding, so long conversation
 		// histories don't exceed embedding model context limits.
 		var embedText string
-		for i := len(req.Messages) - 1; i >= 0; i-- {
-			if req.Messages[i].Role == "user" {
-				if s, ok := req.Messages[i].Content.(string); ok && s != "" {
+		for _, v := range slices.Backward(req.Messages) {
+			if v.Role == "user" {
+				if s, ok := v.Content.(string); ok && s != "" {
 					embedText = s
 				}
 				break
@@ -303,7 +304,7 @@ func sseToResponse(sseData string) string {
 	var created int64
 	var content, reasoning strings.Builder
 
-	for _, line := range strings.Split(sseData, "\n") {
+	for line := range strings.SplitSeq(sseData, "\n") {
 		line = strings.TrimSpace(line)
 		if !strings.HasPrefix(line, "data: ") {
 			continue

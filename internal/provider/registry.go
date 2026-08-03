@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"maps"
 	"sync"
 
 	"github.com/ilter-ai/ilter/internal/config"
@@ -64,9 +65,7 @@ func (r *Registry) InitFromCache(snap *config.Snapshot) error {
 
 	// Copy existing (YAML-sourced) providers first.
 	r.mu.RLock()
-	for k, v := range r.providers {
-		next[k] = v
-	}
+	maps.Copy(next, r.providers)
 	r.mu.RUnlock()
 
 	// Add or override with DB providers from the cache.

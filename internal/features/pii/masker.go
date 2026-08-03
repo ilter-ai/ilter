@@ -4,7 +4,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"log/slog"
+	"maps"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -98,9 +100,7 @@ func (s *ReversibleState) GetMappings() map[string]string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	res := make(map[string]string)
-	for k, v := range s.mappings {
-		res[k] = v
-	}
+	maps.Copy(res, s.mappings)
 	return res
 }
 
@@ -197,8 +197,8 @@ func isValidLuhn(cc string) bool {
 	}
 	sum := 0
 	alt := false
-	for i := len(digits) - 1; i >= 0; i-- {
-		d := digits[i]
+	for _, d := range slices.Backward(digits) {
+
 		if alt {
 			d *= 2
 			if d > 9 {
@@ -235,7 +235,7 @@ func isValidTurkishID(id string) bool {
 		return false
 	}
 	sumAll := 0
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		sumAll += d[i]
 	}
 	if d[10] != sumAll%10 {
@@ -395,8 +395,7 @@ func (m *Masker) ProcessText(text string, state *ReversibleState) (string, error
 		}
 	}
 
-	for i := len(ranges) - 1; i >= 0; i-- {
-		r := ranges[i]
+	for _, r := range slices.Backward(ranges) {
 		switch r.action {
 		case ActionLogOnly:
 			continue

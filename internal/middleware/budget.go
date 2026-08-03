@@ -75,16 +75,10 @@ func (m *BudgetMiddleware) Handler(next http.Handler) http.Handler {
 		monthlySpent, dailySpent, monthlyExceeded, dailyExceeded := m.enforcer.ReadBudgetState(r.Context(), keyID, now, monthlyLimitMicro, dailyLimitMicro)
 
 		w.Header().Set("X-Budget-Limit", fmt.Sprintf("%.4f", float64(monthlyLimitMicro)/1_000_000))
-		monthlyRemaining := monthlyLimitMicro - monthlySpent
-		if monthlyRemaining < 0 {
-			monthlyRemaining = 0
-		}
+		monthlyRemaining := max(monthlyLimitMicro-monthlySpent, 0)
 		w.Header().Set("X-Budget-Remaining", fmt.Sprintf("%.4f", float64(monthlyRemaining)/1_000_000))
 		w.Header().Set("X-Budget-Daily-Limit", fmt.Sprintf("%.4f", float64(dailyLimitMicro)/1_000_000))
-		dailyRemaining := dailyLimitMicro - dailySpent
-		if dailyRemaining < 0 {
-			dailyRemaining = 0
-		}
+		dailyRemaining := max(dailyLimitMicro-dailySpent, 0)
 		w.Header().Set("X-Budget-Daily-Remaining", fmt.Sprintf("%.4f", float64(dailyRemaining)/1_000_000))
 
 		if monthlyExceeded {

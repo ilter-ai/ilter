@@ -146,7 +146,7 @@ func (m *MCPInjectMiddleware) handleNonStreamingOnce(
 			chunk := model.ChatCompletionChunk{
 				ID: chatResp.ID, Object: "chat.completion.chunk", Created: chatResp.Created, Model: chatResp.Model,
 				Choices: []model.ChunkChoice{
-					{Index: 0, Delta: model.Delta{Content: content}, FinishReason: strPtr("stop")},
+					{Index: 0, Delta: model.Delta{Content: content}, FinishReason: new("stop")},
 				},
 			}
 			chunkBytes, _ := json.Marshal(chunk)
@@ -254,7 +254,7 @@ func (m *MCPInjectMiddleware) handleStreamingOnce(
 			chunk.Choices = []model.ChunkChoice{{
 				Index:        0,
 				Delta:        model.Delta{Content: cleanedText},
-				FinishReason: strPtr("stop"),
+				FinishReason: new("stop"),
 			}}
 			chunkBytes, _ := json.Marshal(chunk)
 			fmt.Fprintf(w, "data: %s\n\n", string(chunkBytes))
@@ -303,7 +303,7 @@ func (m *MCPInjectMiddleware) handleStreamingOnce(
 			chunk.Choices = []model.ChunkChoice{{
 				Index:        0,
 				Delta:        model.Delta{Content: cleanedText},
-				FinishReason: strPtr("stop"),
+				FinishReason: new("stop"),
 			}}
 			chunkBytes, _ := json.Marshal(chunk)
 			fmt.Fprintf(w, "data: %s\n\n", string(chunkBytes))
@@ -377,7 +377,7 @@ func (m *MCPInjectMiddleware) handleStreamingOnce(
 			errChunk.Choices = []model.ChunkChoice{{
 				Index:        0,
 				Delta:        model.Delta{Content: errContent},
-				FinishReason: strPtr("stop"),
+				FinishReason: new("stop"),
 			}}
 			errBytes, _ := json.Marshal(errChunk)
 			fmt.Fprintf(w, "data: %s\n\n", string(errBytes))

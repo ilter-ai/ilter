@@ -8,7 +8,24 @@ This document is divided into two sections: **User FAQ**, covering daily operati
 
 ### Do I need to modify my existing application code?
 
-No. ILTER speaks the exact OpenAI chat completions API (`/v1/chat/completions`). Any application currently using the OpenAI SDK or an OpenAI-compatible client will work seamlessly with ILTER simply by updating the `base_url` to `http://localhost:8181/v1`. Provider switching, PII protection, and cost tracking all happen at the proxy layer—not a single line of your application code needs to change.
+No. ILTER speaks the exact OpenAI chat completions API (`/v1/chat/completions`), so any application using the OpenAI SDK or an OpenAI-compatible client works seamlessly simply by updating the `base_url` to `http://localhost:8181/v1`. It also accepts Anthropic-native clients (`/v1/messages`, e.g. Claude Code) and the legacy `/v1/completions` API directly — see the next question. Provider switching, PII protection, and cost tracking all happen at the proxy layer—not a single line of your application code needs to change.
+
+---
+
+### Which API formats and endpoints does ILTER accept?
+
+ILTER isn't limited to OpenAI Chat Completions. Whatever the inbound format, requests are translated into a single internal representation and run through the same pipeline (auth, budget, PII, guardrails, routing, semantic cache):
+
+| Endpoint | Format |
+|----------|--------|
+| `POST /v1/chat/completions` | OpenAI Chat (primary) |
+| `POST /v1/messages` | Anthropic Messages (e.g. Claude Code pointed at ILTER) |
+| `POST /v1/completions` | OpenAI legacy text completions |
+| `POST /v1/embeddings` | OpenAI Embeddings |
+| `POST /v1/rerank` | Cohere/TEI-style rerank |
+| `GET /v1/models` | Model listing |
+
+The inbound format is independent of the upstream provider: an Anthropic-native `/v1/messages` request can still be routed to an OpenAI-compatible upstream, and vice versa (image content blocks are translated automatically).
 
 ---
 

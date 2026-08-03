@@ -96,7 +96,7 @@ func TestInitWizard_EnterKey(t *testing.T) {
 
 	waitFor("Unique name")
 	t.Log("filling provider details (2 providers × 5 fields)")
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		send("\r")
 	}
 
@@ -106,7 +106,7 @@ func TestInitWizard_EnterKey(t *testing.T) {
 
 	waitFor("Loop Detection")
 	t.Log("feature flags + port config")
-	for i := 0; i < 7; i++ {
+	for range 7 {
 		send("\r")
 	}
 

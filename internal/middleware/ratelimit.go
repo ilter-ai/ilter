@@ -126,10 +126,7 @@ func (m *RateLimitMiddleware) Handler(next http.Handler) http.Handler {
 		}
 
 		w.Header().Set("X-RateLimit-Limit", strconv.FormatInt(activeLimit, 10))
-		remaining := activeLimit - keyCount
-		if remaining < 0 {
-			remaining = 0
-		}
+		remaining := max(activeLimit-keyCount, 0)
 		w.Header().Set("X-RateLimit-Remaining", strconv.FormatInt(remaining, 10))
 
 		if retryAfter <= 0 {

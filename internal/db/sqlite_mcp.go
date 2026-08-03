@@ -118,7 +118,7 @@ func (s *SQLiteStore) SaveMCPTools(serverID string, tools []MCPToolInput) error 
 			ID:          serverID + ":" + t.Name,
 			ServerID:    serverID,
 			Name:        t.Name,
-			Description: strPtr(t.Description),
+			Description: new(t.Description),
 			Schema:      schema,
 		}); err != nil {
 			return err

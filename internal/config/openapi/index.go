@@ -311,10 +311,10 @@ func SanitizeToolName(name string) string {
 	// Truncate if longer than 64 chars, keeping prefix and suffix.
 	if len(sanitized) > 64 {
 		keep := 30
-		suffixLen := 64 - keep - 1 // 1 for the middle '_'
-		if suffixLen < 1 {
-			suffixLen = 1
-		}
+		suffixLen := max(
+			// 1 for the middle '_'
+			64-keep-1, 1,
+		)
 		first := sanitized[:keep]
 		last := sanitized[len(sanitized)-suffixLen:]
 		sanitized = first + "_" + last

@@ -159,20 +159,20 @@ func TestInMemoryStore_ConcurrentAccess(t *testing.T) {
 	wg.Add(numGoroutines * 2)
 
 	// Writers
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		go func() {
 			defer wg.Done()
-			for j := 0; j < iterations; j++ {
+			for range iterations {
 				store.SetCooldown(ctx, candidate, time.Hour)
 			}
 		}()
 	}
 
 	// Readers
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		go func() {
 			defer wg.Done()
-			for j := 0; j < iterations; j++ {
+			for range iterations {
 				_ = store.InCooldown(ctx, candidate)
 			}
 		}()

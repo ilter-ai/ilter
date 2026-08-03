@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"net/http"
 
 	"github.com/go-chi/chi/v5"
 
@@ -72,8 +71,7 @@ type App struct {
 	oauthStore         *mcp.OAuthStore
 	oauthCleanupCancel context.CancelFunc
 
-	r         *chi.Mux
-	chatChain http.Handler
+	r *chi.Mux
 
 	auditor *audit.SQLiteConfigAuditor
 }

@@ -26,6 +26,7 @@ func (m *mockTransportForHealthCheck) Tools() []ToolDefinition     { return nil 
 func (m *mockTransportForHealthCheck) NegotiatedVersion() protocol.ID {
 	return m.version
 }
+
 func (m *mockTransportForHealthCheck) Call(_ context.Context, req *JSONRPCRequest) (*JSONRPCResponse, error) {
 	m.lastCall.Store(req.Method)
 	return NewSuccessResponse(req.ID, map[string]any{}), nil

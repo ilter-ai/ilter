@@ -92,13 +92,13 @@ func BenchmarkJSONEncode_ErrorResponse(b *testing.B) {
 }
 
 func BenchmarkJSONEncode_SuccessResponse(b *testing.B) {
-	resp := map[string]interface{}{
+	resp := map[string]any{
 		"id": "chatcmpl-abc", "object": "chat.completion", "created": 1700000000, "model": "gpt-4o",
-		"choices": []map[string]interface{}{{
+		"choices": []map[string]any{{
 			"index": 0, "finish_reason": "stop",
-			"message": map[string]interface{}{"role": "assistant", "content": "Hello!"},
+			"message": map[string]any{"role": "assistant", "content": "Hello!"},
 		}},
-		"usage": map[string]interface{}{"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+		"usage": map[string]any{"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -146,7 +146,7 @@ func BenchmarkStreamResponse_JSON(b *testing.B) {
 	chunk := `{"id":"chatcmpl-abc","object":"chat.completion.chunk","choices":[{"delta":{"content":"Hello"},"index":0}]}`
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		_ = json.Unmarshal([]byte(chunk), &parsed)
 	}
 }
@@ -194,7 +194,7 @@ func BenchmarkJSONDecode_Streaming(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for _, chunk := range chunks {
-			var parsed map[string]interface{}
+			var parsed map[string]any
 			_ = json.Unmarshal([]byte(chunk), &parsed)
 		}
 	}

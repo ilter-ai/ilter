@@ -176,7 +176,7 @@ func (c *StdioClient) discoverTools(ctx context.Context) ([]ToolDefinition, erro
 	cursor := ""
 	const maxPages = 100
 
-	for page := 0; page < maxPages; page++ {
+	for range maxPages {
 		params := json.RawMessage("{}")
 		if cursor != "" {
 			params = json.RawMessage(`{"cursor":"` + cursor + `"}`)

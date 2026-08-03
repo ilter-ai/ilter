@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -191,12 +192,7 @@ func matchesTarget(rule compiledDBRule, userID *int, groupIDs []int) bool {
 		if rule.TargetID == nil {
 			return false
 		}
-		for _, gid := range groupIDs {
-			if gid == *rule.TargetID {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(groupIDs, *rule.TargetID)
 	default:
 		return true
 	}

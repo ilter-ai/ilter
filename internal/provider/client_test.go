@@ -24,11 +24,11 @@ func testCircuitBreakerCfg() config.CircuitBreakerConfig {
 // returns the eventual 200, and that the POST body survives every retry
 // attempt (critical: LLM chat completion requests are POST with a JSON body).
 func TestNewResilientClient_RetriesOn500ThenSucceeds(t *testing.T) {
-	var attempts int32
+	var attempts atomic.Int32
 	var gotBodies []string
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n := atomic.AddInt32(&attempts, 1)
+		n := attempts.Add(1)
 		body, _ := io.ReadAll(r.Body)
 		gotBodies = append(gotBodies, string(body))
 		if n < 3 {
@@ -61,7 +61,7 @@ func TestNewResilientClient_RetriesOn500ThenSucceeds(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200 after retries, got %d", resp.StatusCode)
 	}
-	if got := atomic.LoadInt32(&attempts); got != 3 {
+	if got := attempts.Load(); got != 3 {
 		t.Fatalf("expected exactly 3 attempts (2 failures + 1 success), got %d", got)
 	}
 	for i, b := range gotBodies {
@@ -80,9 +80,9 @@ func TestNewResilientClient_RetriesOn500ThenSucceeds(t *testing.T) {
 // than a synthesized "giving up after N attempts" error (which would have
 // hidden the actual status/Retry-After from the fallback classifier).
 func TestNewResilientClient_GivesUpAfterMaxRetries(t *testing.T) {
-	var attempts int32
+	var attempts atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		atomic.AddInt32(&attempts, 1)
+		attempts.Add(1)
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 	defer srv.Close()
@@ -101,7 +101,7 @@ func TestNewResilientClient_GivesUpAfterMaxRetries(t *testing.T) {
 		t.Errorf("expected error to reference the real status 503, got: %v", err)
 	}
 	// 1 initial attempt + 2 retries = 3.
-	if got := atomic.LoadInt32(&attempts); got != 3 {
+	if got := attempts.Load(); got != 3 {
 		t.Fatalf("expected exactly 3 attempts (1 + MaxRetries=2), got %d", got)
 	}
 }
@@ -109,9 +109,9 @@ func TestNewResilientClient_GivesUpAfterMaxRetries(t *testing.T) {
 // TestNewResilientClient_NoRetryWhenMaxRetriesZero verifies that a
 // MaxRetries=0 config makes exactly one attempt (retry layer elided).
 func TestNewResilientClient_NoRetryWhenMaxRetriesZero(t *testing.T) {
-	var attempts int32
+	var attempts atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		atomic.AddInt32(&attempts, 1)
+		attempts.Add(1)
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer srv.Close()
@@ -126,7 +126,7 @@ func TestNewResilientClient_NoRetryWhenMaxRetriesZero(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error on a 500 response")
 	}
-	if got := atomic.LoadInt32(&attempts); got != 1 {
+	if got := attempts.Load(); got != 1 {
 		t.Fatalf("expected exactly 1 attempt with MaxRetries=0, got %d", got)
 	}
 }

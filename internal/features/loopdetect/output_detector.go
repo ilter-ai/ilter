@@ -121,10 +121,7 @@ func (d *OutputDetector) Feed(delta string) OutputLoopResult {
 
 		if maybeBoundary {
 			// Extract the sentence: from after the previous boundary to this boundary (inclusive)
-			prevBoundary := start
-			if prevBoundary < 0 {
-				prevBoundary = 0
-			}
+			prevBoundary := max(start, 0)
 			sentence := strings.TrimSpace(text[prevBoundary : boundary+1])
 			if utf8.RuneCountInString(sentence) >= d.minSentenceLen &&
 				utf8.RuneCountInString(sentence) <= d.maxSentenceLen {

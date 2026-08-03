@@ -6,10 +6,6 @@ import (
 	"github.com/ilter-ai/ilter/internal/config"
 )
 
-func intPtr(i int) *int {
-	return &i
-}
-
 func TestMatchToolPatternWildcard(t *testing.T) {
 	if !toolMatches("*/*", "anything") {
 		t.Error("*/* should match anything")
@@ -136,7 +132,7 @@ func TestAuthorizerCheckAccessKeyPrefixPartialMatch(t *testing.T) {
 }
 
 func TestAuthorizerCheckAccessGroupIDFilter(t *testing.T) {
-	engGroup := intPtr(1)
+	engGroup := new(1)
 	a := NewAuthorizer(nil, []config.MCPAccessRule{
 		{GroupID: engGroup, Tools: []string{"deploy"}},
 	}, "deny")
@@ -155,7 +151,7 @@ func TestAuthorizerCheckAccessGroupIDFilter(t *testing.T) {
 }
 
 func TestAuthorizerCheckAccessMultipleGroupIDs(t *testing.T) {
-	devGroup := intPtr(2)
+	devGroup := new(2)
 	a := NewAuthorizer(nil, []config.MCPAccessRule{
 		{GroupID: devGroup, Tools: []string{"deploy"}},
 	}, "deny")
@@ -185,7 +181,7 @@ func TestAuthorizerCheckAccessKeyIDFilter(t *testing.T) {
 }
 
 func TestAuthorizerCheckAccessMultipleRules(t *testing.T) {
-	engGroup := intPtr(1)
+	engGroup := new(1)
 	a := NewAuthorizer(nil, []config.MCPAccessRule{
 		{GroupID: engGroup, Tools: []string{"deploy", "rollback"}},
 		{Tools: []string{"read_*"}},
@@ -233,7 +229,7 @@ func TestGetAuthorizedToolsNoRules(t *testing.T) {
 }
 
 func TestGetAuthorizedToolsGroupFilter(t *testing.T) {
-	engGroup := intPtr(1)
+	engGroup := new(1)
 	a := NewAuthorizer(nil, []config.MCPAccessRule{
 		{GroupID: engGroup, Tools: []string{"deploy", "rollback"}},
 		{Tools: []string{"read_*"}},
@@ -257,7 +253,7 @@ func TestGetAuthorizedToolsGroupFilter(t *testing.T) {
 }
 
 func TestGetAuthorizedToolsKeyPrefixAndGroup(t *testing.T) {
-	devGroup := intPtr(2)
+	devGroup := new(2)
 	a := NewAuthorizer(nil, []config.MCPAccessRule{
 		{KeyPrefix: "a1b2c3d4e5f6", Tools: []string{"production_tool"}},
 		{GroupID: devGroup, Tools: []string{"dev_tool"}},

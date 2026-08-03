@@ -136,5 +136,3 @@ func baseChunkFromChunks(chunks []mcp.SSEChunk) model.ChatCompletionChunk {
 		Object: "chat.completion.chunk",
 	}
 }
-
-func strPtr(s string) *string { return &s }

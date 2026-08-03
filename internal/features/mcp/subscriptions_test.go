@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/ilter-ai/ilter/internal/config"
-	"github.com/ilter-ai/ilter/internal/features/mcp/protocol/v20260728"
+	v20260728 "github.com/ilter-ai/ilter/internal/features/mcp/protocol/v20260728"
 )
 
 func TestSubscriptionBroker_PublishDeliversToOptedInSubscriber(t *testing.T) {
@@ -81,7 +81,7 @@ func TestSubscriptionBroker_UnsubscribeStopsDelivery(t *testing.T) {
 	}
 }
 
-func TestSubscriptionBroker_UnsubscribeIsIdempotent(t *testing.T) {
+func TestSubscriptionBroker_UnsubscribeIsIdempotent(_ *testing.T) {
 	b := NewSubscriptionBroker()
 	id, _ := b.Subscribe([]string{v20260728.NotifyToolsListChanged})
 	b.Unsubscribe(id)
@@ -124,7 +124,7 @@ func TestRegistry_OnToolsChanged_FiresOnRegisterAndUnregister(t *testing.T) {
 	r.RegisterServer("s2", config.MCPServerConfig{ID: "s2"}, nil)
 	r.UnregisterServer("s2")
 
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case <-done:
 		case <-time.After(time.Second):

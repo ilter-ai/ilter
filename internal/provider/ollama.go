@@ -107,8 +107,51 @@ func (p *OllamaProvider) Type() string {
 }
 
 type ollamaNativeMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role      string                 `json:"role"`
+	Content   string                 `json:"content"`
+	ToolCalls []ollamaNativeToolCall `json:"tool_calls,omitempty"`
+}
+
+type ollamaNativeToolCall struct {
+	Function ollamaNativeToolCallFunction `json:"function"`
+}
+
+type ollamaNativeToolCallFunction struct {
+	Name      string         `json:"name"`
+	Arguments map[string]any `json:"arguments"`
+}
+
+// ollamaContentToString flattens an OpenAI-style message content field
+// (string, or an array of content-block maps) down to plain text, since
+// Ollama's native /api/chat only accepts a string content field. Falls back
+// to a JSON dump so no message is silently dropped from the conversation.
+func ollamaContentToString(content any) string {
+	if content == nil {
+		return ""
+	}
+	if s, ok := content.(string); ok {
+		return s
+	}
+	if parts, ok := content.([]any); ok {
+		var sb strings.Builder
+		for _, part := range parts {
+			m, ok := part.(map[string]any)
+			if !ok {
+				continue
+			}
+			if t, _ := m["type"].(string); t == "text" {
+				if text, ok := m["text"].(string); ok {
+					sb.WriteString(text)
+				}
+			}
+		}
+		return sb.String()
+	}
+	b, err := json.Marshal(content)
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 type ollamaNativeOptions struct {
@@ -125,6 +168,7 @@ type ollamaNativeRequest struct {
 	Messages []ollamaNativeMessage `json:"messages"`
 	Stream   bool                  `json:"stream"`
 	Options  *ollamaNativeOptions  `json:"options,omitempty"`
+	Tools    []model.Tool          `json:"tools,omitempty"`
 }
 
 type ollamaNativeResponse struct {
@@ -155,12 +199,27 @@ func (p *OllamaProvider) TransformRequest(ctx context.Context, req *model.ChatCo
 	}
 
 	for _, m := range req.Messages {
-		if contentStr, ok := m.Content.(string); ok {
-			nativeReq.Messages = append(nativeReq.Messages, ollamaNativeMessage{
-				Role:    m.Role,
-				Content: contentStr,
+		nm := ollamaNativeMessage{
+			Role:    m.Role,
+			Content: ollamaContentToString(m.Content),
+		}
+		for _, tc := range m.ToolCalls {
+			var args map[string]any
+			if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+				slog.Warn("failed to unmarshal ollama tool call arguments", "error", err)
+				args = map[string]any{}
+			}
+			nm.ToolCalls = append(nm.ToolCalls, ollamaNativeToolCall{
+				Function: ollamaNativeToolCallFunction{
+					Name:      tc.Function.Name,
+					Arguments: args,
+				},
 			})
 		}
+		nativeReq.Messages = append(nativeReq.Messages, nm)
+	}
+	if len(req.Tools) > 0 {
+		nativeReq.Tools = req.Tools
 	}
 
 	options := &ollamaNativeOptions{
@@ -210,7 +269,22 @@ func (p *OllamaProvider) TransformResponse(ctx context.Context, resp *http.Respo
 
 	createdTime, _ := time.Parse(time.RFC3339, nativeResp.CreatedAt)
 
+	var toolCalls []model.ToolCall
+	for _, tc := range nativeResp.Message.ToolCalls {
+		argsBytes, _ := json.Marshal(tc.Function.Arguments)
+		toolCalls = append(toolCalls, model.ToolCall{
+			ID:   "call_" + uuid.New().String(),
+			Type: "function",
+			Function: model.ToolCallFunctionData{
+				Name:      tc.Function.Name,
+				Arguments: string(argsBytes),
+			},
+		})
+	}
 	finishReason := "stop"
+	if len(toolCalls) > 0 {
+		finishReason = "tool_calls"
+	}
 
 	chatResp := &model.ChatCompletionResponse{
 		ID:      "ollama-" + uuid.New().String(),
@@ -221,8 +295,9 @@ func (p *OllamaProvider) TransformResponse(ctx context.Context, resp *http.Respo
 			{
 				Index: 0,
 				Message: model.ChoiceMessage{
-					Role:    nativeResp.Message.Role,
-					Content: nativeResp.Message.Content,
+					Role:      nativeResp.Message.Role,
+					Content:   nativeResp.Message.Content,
+					ToolCalls: toolCalls,
 				},
 				FinishReason: finishReason,
 			},
@@ -239,6 +314,87 @@ func (p *OllamaProvider) TransformResponse(ctx context.Context, resp *http.Respo
 
 func (p *OllamaProvider) Client() *http.Client {
 	return p.openAI.Client()
+}
+
+type ollamaNativeEmbedRequest struct {
+	Model string   `json:"model"`
+	Input []string `json:"input"`
+}
+
+type ollamaNativeEmbedResponse struct {
+	Model      string      `json:"model"`
+	Embeddings [][]float64 `json:"embeddings"`
+}
+
+// Embed proxies embedding requests. In OpenAI-compatible mode it delegates
+// to the /v1/embeddings passthrough; otherwise it calls Ollama's native
+// /api/embed, which accepts the same batched-input shape.
+func (p *OllamaProvider) Embed(ctx context.Context, req *model.EmbeddingRequest) (*model.EmbeddingResponse, error) {
+	if err := p.detectMode(ctx); err != nil {
+		return nil, fmt.Errorf("failed to detect ollama mode: %w", err)
+	}
+	if !p.useNative {
+		return p.openAI.Embed(ctx, req)
+	}
+
+	var inputs []string
+	switch v := req.Input.(type) {
+	case string:
+		inputs = []string{v}
+	case []string:
+		inputs = v
+	case []any:
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				inputs = append(inputs, s)
+			}
+		}
+	default:
+		return nil, fmt.Errorf("ollama native embed: unsupported input type %T", req.Input)
+	}
+
+	nativeReq := ollamaNativeEmbedRequest{Model: req.Model, Input: inputs}
+	bodyBytes, err := json.Marshal(nativeReq)
+	if err != nil {
+		return nil, err
+	}
+
+	url := fmt.Sprintf("%s/api/embed", p.config.BaseURL)
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := p.openAI.client.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ollama native embed returned %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	var nativeResp ollamaNativeEmbedResponse
+	if err := json.Unmarshal(respBytes, &nativeResp); err != nil {
+		return nil, err
+	}
+
+	data := make([]model.EmbeddingData, len(nativeResp.Embeddings))
+	for i, e := range nativeResp.Embeddings {
+		data[i] = model.EmbeddingData{Object: "embedding", Index: i, Embedding: e}
+	}
+
+	return &model.EmbeddingResponse{
+		Object: "list",
+		Data:   data,
+		Model:  nativeResp.Model,
+	}, nil
 }
 
 func (p *OllamaProvider) HealthCheck(ctx context.Context) error {
@@ -266,6 +422,20 @@ func (p *OllamaProvider) TransformStreamChunk(data []byte) (*model.ChatCompletio
 
 	createdTime, _ := time.Parse(time.RFC3339, nativeChunk.CreatedAt)
 
+	var toolCalls []model.ChunkToolCall
+	for i, tc := range nativeChunk.Message.ToolCalls {
+		argsBytes, _ := json.Marshal(tc.Function.Arguments)
+		toolCalls = append(toolCalls, model.ChunkToolCall{
+			Index: i,
+			ID:    "call_" + uuid.New().String(),
+			Type:  "function",
+			Function: model.ChunkToolCallFunction{
+				Name:      tc.Function.Name,
+				Arguments: string(argsBytes),
+			},
+		})
+	}
+
 	chunk := &model.ChatCompletionChunk{
 		ID:      "ollama-" + uuid.New().String(),
 		Object:  "chat.completion.chunk",
@@ -275,7 +445,8 @@ func (p *OllamaProvider) TransformStreamChunk(data []byte) (*model.ChatCompletio
 			{
 				Index: 0,
 				Delta: model.Delta{
-					Content: nativeChunk.Message.Content,
+					Content:   nativeChunk.Message.Content,
+					ToolCalls: toolCalls,
 				},
 			},
 		},
@@ -283,6 +454,9 @@ func (p *OllamaProvider) TransformStreamChunk(data []byte) (*model.ChatCompletio
 
 	if nativeChunk.Done {
 		finishReason := "stop"
+		if len(toolCalls) > 0 {
+			finishReason = "tool_calls"
+		}
 		chunk.Choices[0].FinishReason = &finishReason
 		return chunk, true, nil
 	}

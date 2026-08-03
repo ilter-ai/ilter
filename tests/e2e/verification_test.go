@@ -37,15 +37,15 @@ func startMockOpenAIServer(addr string) *http.Server {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		var reqData map[string]interface{}
+		var reqData map[string]any
 		if err := json.Unmarshal(bodyBytes, &reqData); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		messages, ok := reqData["messages"].([]interface{})
+		messages, ok := reqData["messages"].([]any)
 		if ok && len(messages) > 0 {
-			lastMsg, ok := messages[len(messages)-1].(map[string]interface{})
+			lastMsg, ok := messages[len(messages)-1].(map[string]any)
 			if ok {
 				muLog.Lock()
 				lastReceivedPrompt, _ = lastMsg["content"].(string)
@@ -60,15 +60,15 @@ func startMockOpenAIServer(addr string) *http.Server {
 			w.Header().Set("Connection", "keep-alive")
 			w.WriteHeader(http.StatusOK)
 
-			chunk1 := map[string]interface{}{
+			chunk1 := map[string]any{
 				"id":      "chatcmpl-123",
 				"object":  "chat.completion.chunk",
 				"created": 1677652288,
 				"model":   "gpt-4o",
-				"choices": []interface{}{
-					map[string]interface{}{
+				"choices": []any{
+					map[string]any{
 						"index": 0,
-						"delta": map[string]interface{}{
+						"delta": map[string]any{
 							"role": "assistant",
 						},
 					},
@@ -84,15 +84,15 @@ func startMockOpenAIServer(addr string) *http.Server {
 			prompt := lastReceivedPrompt
 			muLog.Unlock()
 
-			chunk2 := map[string]interface{}{
+			chunk2 := map[string]any{
 				"id":      "chatcmpl-123",
 				"object":  "chat.completion.chunk",
 				"created": 1677652288,
 				"model":   "gpt-4o",
-				"choices": []interface{}{
-					map[string]interface{}{
+				"choices": []any{
+					map[string]any{
 						"index": 0,
-						"delta": map[string]interface{}{
+						"delta": map[string]any{
 							"content": fmt.Sprintf("I got: %s", prompt),
 						},
 					},
@@ -115,22 +115,22 @@ func startMockOpenAIServer(addr string) *http.Server {
 		prompt := lastReceivedPrompt
 		muLog.Unlock()
 
-		resp := map[string]interface{}{
+		resp := map[string]any{
 			"id":      "chatcmpl-123",
 			"object":  "chat.completion",
 			"created": 1677652288,
 			"model":   "gpt-4o",
-			"choices": []interface{}{
-				map[string]interface{}{
+			"choices": []any{
+				map[string]any{
 					"index": 0,
-					"message": map[string]interface{}{
+					"message": map[string]any{
 						"role":    "assistant",
 						"content": fmt.Sprintf("Echo: %s", prompt),
 					},
 					"finish_reason": "stop",
 				},
 			},
-			"usage": map[string]interface{}{
+			"usage": map[string]any{
 				"prompt_tokens":     10,
 				"completion_tokens": 15,
 				"total_tokens":      25,
@@ -200,7 +200,7 @@ func TestE2EAndSchemathesis(t *testing.T) {
 		err          error
 		userKey      string
 		userKeyID    string
-		keyResp      map[string]interface{}
+		keyResp      map[string]any
 		serveCmd     *exec.Cmd
 		mockSrv      *http.Server
 		healthy      bool
@@ -245,7 +245,7 @@ func TestE2EAndSchemathesis(t *testing.T) {
 
 	// Wait for mock server to be ready
 	var resp *http.Response
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://127.0.0.1:8081/models", nil)
 		resp, err = http.DefaultClient.Do(req)
 		if err == nil {
@@ -335,7 +335,7 @@ func TestE2EAndSchemathesis(t *testing.T) {
 	// 6. Ping healthcheck to wait for boot
 	t.Log("Waiting for healthcheck...")
 	healthy = false
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		code, _, _, err = makeRequest("GET", "http://127.0.0.1:8082/v1/models", map[string]string{"Authorization": "Bearer test"}, nil)
 		if err == nil && code == 200 {
 			healthy = true
@@ -369,8 +369,8 @@ func TestE2EAndSchemathesis(t *testing.T) {
 	}
 	userKey, _ = keyResp["key"].(string)
 	userKeyID, _ = keyResp["id"].(string)
-	if !strings.HasPrefix(userKey, "ilter_") {
-		t.Fatalf("Expected ilter_ prefix for key: %s", userKey)
+	if len(userKey) != 64 {
+		t.Fatalf("Expected 64-char hex key, got: %s", userKey)
 	}
 
 	code, body, _, err = makeRequest("GET", "http://127.0.0.1:9092/api/stats", adminHeaders, nil)
@@ -459,7 +459,7 @@ func TestE2EAndSchemathesis(t *testing.T) {
 	if err != nil || code != 200 {
 		t.Fatalf("Dashboard models failed: code %d, body: %s", code, body)
 	}
-	var models []map[string]interface{}
+	var models []map[string]any
 	if err = json.Unmarshal([]byte(body), &models); err != nil {
 		t.Fatalf("Dashboard models JSON decode failed: %v, body: %s", err, body)
 	}
@@ -486,7 +486,7 @@ func TestE2EAndSchemathesis(t *testing.T) {
 	if err != nil || code != 200 {
 		t.Fatalf("Dashboard providers failed: code %d, body: %s", code, body)
 	}
-	var providers []map[string]interface{}
+	var providers []map[string]any
 	if err = json.Unmarshal([]byte(body), &providers); err != nil {
 		t.Fatalf("Dashboard providers JSON decode failed: %v, body: %s", err, body)
 	}

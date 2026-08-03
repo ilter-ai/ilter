@@ -33,7 +33,7 @@ Default to **Docker** if a container runtime is available and the project has no
 
 **Docker:**
 ```bash
-docker pull ykocaman/ilter:latest
+docker pull ghcr.io/ilter-ai/ilter:latest
 ```
 
 **Binary** — detect OS/arch, download the matching asset from the latest release:
@@ -72,7 +72,7 @@ docker run -d \
   -v $(pwd)/data:/app/data \
   -e ILTER_ADMIN_API_KEY=<admin-key> \
   -e ILTER_PROVIDER_OPENAI_API_KEY=<provider-key> \
-  ykocaman/ilter:latest
+  ghcr.io/ilter-ai/ilter:latest
 ```
 
 **Binary:**
@@ -98,7 +98,7 @@ A `200` with a real completion means the provider key works and the gateway is r
 
 ## 6. Point the human's application at ILTER
 
-No SDK migration needed — ILTER speaks the OpenAI-compatible API. In the human's codebase, find wherever the OpenAI/Anthropic/etc. client is constructed and:
+No SDK migration needed — ILTER speaks the OpenAI-compatible API, and also accepts Anthropic-native clients (`/v1/messages`) and the legacy `/v1/completions` API directly. In the human's codebase, find wherever the OpenAI/Anthropic/etc. client is constructed and:
 
 - Change the `base_url` (or `OPENAI_BASE_URL` / equivalent env var) to `http://localhost:8181/v1`
 - Replace the API key used by that client with the ILTER admin key or a per-key credential created via the dashboard/API (see step 7)

@@ -49,10 +49,7 @@ func TestNameDetectorWithFiles(t *testing.T) {
 	nd := NewNameDetector(enSrc, trSrc)
 
 	// Verify names loaded from files are recognized
-	sampleSize := 5
-	if len(enNames) < sampleSize {
-		sampleSize = len(enNames)
-	}
+	sampleSize := min(len(enNames), 5)
 	for i := 0; i < sampleSize; i++ {
 		name := enNames[i]
 		if !nd.IsName(name) {
@@ -124,7 +121,7 @@ func TestNameDetector_FalsePositiveRate(t *testing.T) {
 
 	var falsePositives int
 	total := 1000
-	for i := 0; i < total; i++ {
+	for i := range total {
 		// Generate random-looking non-name strings
 		nonName := randomString(6 + i%10)
 		if nd.IsName(nonName) {

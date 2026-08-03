@@ -40,11 +40,11 @@ func toolExposedName(serverID, toolName string) string {
 }
 
 func splitExposedName(exposed string) (string, string) {
-	idx := strings.Index(exposed, hubToolSep)
-	if idx < 0 {
+	before, after, ok := strings.Cut(exposed, hubToolSep)
+	if !ok {
 		return "", exposed
 	}
-	return exposed[:idx], exposed[idx+len(hubToolSep):]
+	return before, after
 }
 
 func (hub *Hub) Dispatch(req *JSONRPCRequest, session *Session) *JSONRPCResponse {

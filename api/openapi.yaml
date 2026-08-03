@@ -292,6 +292,311 @@ paths:
                           type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /v1/messages:
+    post:
+      tags: [Proxy]
+      servers:
+        - url: http://127.0.0.1:8181
+      summary: Anthropic Messages API (native passthrough)
+      description: >
+        Accepts Anthropic's native Messages API wire format directly (for
+        clients such as Claude Code pointed at a custom base URL). Translated
+        internally into the same request the gateway uses for
+        /v1/chat/completions, so it is routed, cached, and audited exactly
+        like any other chat request, and can still land on a non-Anthropic
+        upstream. The response is translated back into Anthropic's wire
+        format, including streaming SSE events.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - model
+                - messages
+                - max_tokens
+              properties:
+                model:
+                  type: string
+                  example: claude-opus-4
+                system:
+                  type: string
+                messages:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      role:
+                        type: string
+                        enum: [user, assistant]
+                      content:
+                        description: string, or an array of Anthropic content blocks (text, tool_use, tool_result)
+                max_tokens:
+                  type: integer
+                stream:
+                  type: boolean
+                thinking:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                      enum: [enabled, disabled]
+                    budget_tokens:
+                      type: integer
+      responses:
+        '200':
+          description: Anthropic Messages response (or SSE stream when stream=true)
+          headers:
+            X-Ilter-Complexity-Score:
+              schema:
+                type: number
+                description: Complexity score of the prompt (0.0–10.0)
+            X-Ilter-Model-Selected:
+              schema:
+                type: string
+                description: The model selected by smart routing
+            X-Ilter-Cost:
+              schema:
+                type: number
+                description: Actual cost in USD for this request (non-streaming only)
+            X-Ilter-Cost-Estimate:
+              schema:
+                type: number
+                description: Estimated cost in USD for this request
+            X-Ilter-Alternative-Cost:
+              schema:
+                type: number
+                description: Estimated cost if using an alternative model
+            X-Ilter-Savings-Potential:
+              schema:
+                type: string
+                description: Savings percentage compared to alternative
+                example: 45%
+            X-Ilter-Loop-Warning:
+              schema:
+                type: boolean
+                description: Indicates potential agentic loop detected
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/PIIBlocked'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '502':
+          $ref: '#/components/responses/ProviderError'
+  /v1/completions:
+    post:
+      tags: [Proxy]
+      servers:
+        - url: http://127.0.0.1:8181
+      summary: Legacy Text Completion (deprecated upstream)
+      description: >
+        OpenAI's pre-chat text-completion API. Translated internally into a
+        single-user-message chat-completion request and back.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - model
+                - prompt
+              properties:
+                model:
+                  type: string
+                prompt:
+                  type: string
+                max_tokens:
+                  type: integer
+                stream:
+                  type: boolean
+      responses:
+        '200':
+          description: Completion successful (or SSE stream when stream=true)
+          headers:
+            X-Ilter-Complexity-Score:
+              schema:
+                type: number
+                description: Complexity score of the prompt (0.0–10.0)
+            X-Ilter-Model-Selected:
+              schema:
+                type: string
+                description: The model selected by smart routing
+            X-Ilter-Cost:
+              schema:
+                type: number
+                description: Actual cost in USD for this request (non-streaming only)
+            X-Ilter-Cost-Estimate:
+              schema:
+                type: number
+                description: Estimated cost in USD for this request
+            X-Ilter-Alternative-Cost:
+              schema:
+                type: number
+                description: Estimated cost if using an alternative model
+            X-Ilter-Savings-Potential:
+              schema:
+                type: string
+                description: Savings percentage compared to alternative
+                example: 45%
+            X-Ilter-Loop-Warning:
+              schema:
+                type: boolean
+                description: Indicates potential agentic loop detected
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/PIIBlocked'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '502':
+          $ref: '#/components/responses/ProviderError'
+  /v1/embeddings:
+    post:
+      tags: [Proxy]
+      servers:
+        - url: http://127.0.0.1:8181
+      summary: Create Embeddings
+      description: >
+        Proxies to POST {provider_base_url}/embeddings on the resolved
+        provider. Works for OpenAI and any self-hosted OpenAI-compatible
+        server registered as an "openai"-type provider (oMLX, vLLM, TEI, ...),
+        and for Ollama (native /api/embed or /v1/embeddings depending on
+        detected mode). Providers that don't implement embeddings return 400.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - model
+                - input
+              properties:
+                model:
+                  type: string
+                input:
+                  description: string, or an array of strings
+      responses:
+        '200':
+          description: Embedding vectors
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  model:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        object:
+                          type: string
+                        index:
+                          type: integer
+                        embedding:
+                          type: array
+                          items:
+                            type: number
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '502':
+          $ref: '#/components/responses/ProviderError'
+  /v1/rerank:
+    post:
+      tags: [Proxy]
+      servers:
+        - url: http://127.0.0.1:8181
+      summary: Rerank Documents
+      description: >
+        Cohere/TEI-style document reranking, proxied to POST
+        {provider_base_url}/rerank on the resolved provider. Intended for
+        self-hosted rerankers registered as an "openai"-type provider (oMLX,
+        Xinference, Infinity, text-embeddings-inference). Providers that
+        don't implement reranking return 400.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - model
+                - query
+                - documents
+              properties:
+                model:
+                  type: string
+                query:
+                  type: string
+                documents:
+                  type: array
+                  items:
+                    type: string
+                top_n:
+                  type: integer
+      responses:
+        '200':
+          description: Ranked results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  model:
+                    type: string
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        index:
+                          type: integer
+                        relevance_score:
+                          type: number
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '502':
+          $ref: '#/components/responses/ProviderError'
 
   /:
     get:

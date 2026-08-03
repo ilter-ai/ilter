@@ -58,8 +58,8 @@ func (m ModelInfo) SupportsTools() bool {
 // route tables are keyed by bare model name. Model names never contain '/',
 // so any prefix is always a provider label.
 func CanonicalModelID(modelID string) string {
-	if idx := strings.IndexByte(modelID, '/'); idx >= 0 {
-		return modelID[idx+1:]
+	if _, after, ok := strings.Cut(modelID, "/"); ok {
+		return after
 	}
 	return modelID
 }

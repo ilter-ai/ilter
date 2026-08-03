@@ -28,7 +28,7 @@ func TestRenderPrompt_Basic(t *testing.T) {
 		Name:    "greeting",
 		Content: "Hello, {{.Name}}!",
 	}
-	result, err := RenderPrompt(tmpl, map[string]interface{}{"Name": "World"})
+	result, err := RenderPrompt(tmpl, map[string]any{"Name": "World"})
 	require.NoError(t, err)
 	assert.Equal(t, "Hello, World!", result)
 }
@@ -38,7 +38,7 @@ func TestRenderPrompt_MultipleVars(t *testing.T) {
 		Name:    "multi",
 		Content: "{{.Greeting}}, {{.Name}}! You are {{.Age}} years old.",
 	}
-	result, err := RenderPrompt(tmpl, map[string]interface{}{
+	result, err := RenderPrompt(tmpl, map[string]any{
 		"Greeting": "Hi",
 		"Name":     "Alice",
 		"Age":      30,
@@ -52,7 +52,7 @@ func TestRenderPrompt_NoVars(t *testing.T) {
 		Name:    "static",
 		Content: "Static text without variables",
 	}
-	result, err := RenderPrompt(tmpl, map[string]interface{}{})
+	result, err := RenderPrompt(tmpl, map[string]any{})
 	require.NoError(t, err)
 	assert.Equal(t, "Static text without variables", result)
 }
@@ -63,7 +63,7 @@ func TestRenderPrompt_MissingVar(t *testing.T) {
 		Content: "Hello, {{.Name}}!",
 	}
 	// text/template renders missing keys as "<no value>" (intentional – uncovers template bugs)
-	result, err := RenderPrompt(tmpl, map[string]interface{}{})
+	result, err := RenderPrompt(tmpl, map[string]any{})
 	require.NoError(t, err)
 	assert.Equal(t, "Hello, <no value>!", result)
 }
@@ -73,7 +73,7 @@ func TestRenderPrompt_InvalidTemplate(t *testing.T) {
 		Name:    "bad",
 		Content: "Hello {{.Name",
 	}
-	_, err := RenderPrompt(tmpl, map[string]interface{}{"Name": "World"})
+	_, err := RenderPrompt(tmpl, map[string]any{"Name": "World"})
 	assert.Error(t, err)
 }
 

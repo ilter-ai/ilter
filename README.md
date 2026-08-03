@@ -4,9 +4,7 @@
   </a>
   <h1>ILTER — AI Gateway</h1>
 
-[![Docker Hub](https://img.shields.io/badge/docker-ykocaman%2Filter-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/ykocaman/ilter)
-[![Docker Pulls](https://img.shields.io/docker/pulls/ykocaman/ilter)](https://hub.docker.com/r/ykocaman/ilter)
-[![Docker Image Size](https://img.shields.io/docker/image-size/ykocaman/ilter/latest)](https://hub.docker.com/r/ykocaman/ilter)
+[![GHCR](https://img.shields.io/badge/ghcr.io-ilter--ai%2Filter-2496ED?logo=github&logoColor=white)](https://github.com/ilter-ai/ilter/pkgs/container/ilter)
 [![GitHub release](https://img.shields.io/github/v/release/ilter-ai/ilter)](https://github.com/ilter-ai/ilter/releases)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/ilter-ai/ilter)](go.mod)
 [![License](https://img.shields.io/badge/license-Apache%202.0%20with%20Commons%20Clause-blue)](LICENSE)
@@ -112,7 +110,7 @@ Using expensive models for every simple question wastes engineering time and mon
 
 ### 🌐 Smart Fallback
 Don't get locked into a single vendor or disrupted by provider outages. 
-- **Single Endpoint:** Hides 9 providers behind one uniform OpenAI-compatible API.
+- **Single Endpoint:** Hides 9 providers behind one uniform API — OpenAI-compatible plus Anthropic-native, embeddings, and rerank.
 - **Circuit Breaker:** `RetryTransport → CircuitBreakerTransport`. 5 consecutive failures open the circuit and trigger automatic fallback.
 - **Seamless Failover:** Switching from OpenAI to Anthropic during an outage requires zero code changes.
 
@@ -206,6 +204,18 @@ curl -X POST http://localhost:8181/v1/chat/completions \
 | **OpenCode** | `opencode_go` and `opencode_zen` SDK endpoint mapping |
 | **Mock** | Built-in mock provider for local testing |
 
+### API Formats
+
+ILTER isn't limited to OpenAI Chat Completions — it accepts multiple inbound wire formats and routes them all through the same pipeline (auth, budget, PII, guardrails, routing):
+
+| Endpoint | Format |
+|----------|--------|
+| `POST /v1/chat/completions` | OpenAI Chat (primary) |
+| `POST /v1/messages` | Anthropic Messages (e.g. Claude Code pointed at ILTER) |
+| `POST /v1/completions` | OpenAI legacy text completions |
+| `POST /v1/embeddings` | OpenAI Embeddings |
+| `POST /v1/rerank` | Cohere/TEI-style rerank |
+
 ---
 
 ## Architecture
@@ -260,7 +270,7 @@ docker run -d \
   -v $(pwd)/data:/app/data \
   -e ILTER_ADMIN_API_KEY=<your-own-random-secret> \
   -e ILTER_PROVIDER_OPENAI_API_KEY=sk-... \
-  ykocaman/ilter:latest
+  ghcr.io/ilter-ai/ilter:latest
 
 # Full local stack: ILTER + Redis Stack + Ollama
 docker compose up -d

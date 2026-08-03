@@ -272,13 +272,7 @@ func (lb *LoadBalancer) findCheapestDowngrade(primaryModel string, allowedModels
 			continue
 		}
 		if len(allowedModels) > 0 {
-			found := false
-			for _, a := range allowedModels {
-				if name == a {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(allowedModels, name)
 			if !found {
 				continue
 			}

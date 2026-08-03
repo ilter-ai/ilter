@@ -63,3 +63,13 @@ type ConfigurableProvider interface {
 	UpdateConfig(baseURL string, apiKey string)
 	UpdateKeys(baseURL string, apiKey string, apiKeys []string)
 }
+
+// EmbeddingProvider is implemented by providers that can serve POST /v1/embeddings.
+type EmbeddingProvider interface {
+	Embed(ctx context.Context, req *model.EmbeddingRequest) (*model.EmbeddingResponse, error)
+}
+
+// RerankProvider is implemented by providers that can serve POST /v1/rerank.
+type RerankProvider interface {
+	Rerank(ctx context.Context, req *model.RerankRequest) (*model.RerankResponse, error)
+}

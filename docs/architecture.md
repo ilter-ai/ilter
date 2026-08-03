@@ -88,7 +88,7 @@ ILTER is a **single-binary reverse proxy** built in Go 1.26.3 (`CGO_ENABLED=0`) 
 
 | Server | Port | Purpose |
 |--------|------|---------|
-| **Proxy** | 8181 | Handles `/v1/chat/completions`, `/v1/models`, `/admin/*`, MCP endpoints (`/mcp`, `/mcp/hub`), and OAuth PKCE (`/.well-known/*`, `/authorize`, `/token`, `/register`) |
+| **Proxy** | 8181 | Handles `/v1/chat/completions`, `/v1/messages` (Anthropic-native), `/v1/completions` (legacy), `/v1/embeddings`, `/v1/rerank`, `/v1/models`, `/admin/*`, MCP endpoints (`/mcp`, `/mcp/hub`), and OAuth PKCE (`/.well-known/*`, `/authorize`, `/token`, `/register`) |
 | **Dashboard** | 9191 | Embedded web UI + JSON API (`/api/*`): stats, cost analytics, feature management, MCP, jobs, smart router, guardrails, PII, prompts |
 | **Metrics** | 9192 | Prometheus `/metrics` scrape endpoint (OpenTelemetry → Prometheus exporter) |
 

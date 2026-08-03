@@ -252,10 +252,7 @@ func (s *JobStore) GetRun(id string) (*JobRun, error) {
 
 // ListRuns returns runs for a job with pagination.
 func (s *JobStore) ListRuns(jobID string, page, perPage int) ([]JobRun, error) {
-	offset := (page - 1) * perPage
-	if offset < 0 {
-		offset = 0
-	}
+	offset := max((page-1)*perPage, 0)
 	if perPage <= 0 {
 		perPage = 20
 	}

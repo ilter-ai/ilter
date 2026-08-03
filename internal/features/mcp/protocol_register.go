@@ -10,7 +10,7 @@ package mcp
 // This is the only place in the codebase that needs to know all 3 versions
 // exist by name; everything else goes through protocol.Negotiate.
 import (
-	_ "github.com/ilter-ai/ilter/internal/features/mcp/protocol/v20241105"
-	_ "github.com/ilter-ai/ilter/internal/features/mcp/protocol/v20250326"
-	_ "github.com/ilter-ai/ilter/internal/features/mcp/protocol/v20260728"
+	_ "github.com/ilter-ai/ilter/internal/features/mcp/protocol/v20241105" // registers via init()
+	_ "github.com/ilter-ai/ilter/internal/features/mcp/protocol/v20250326" // registers via init()
+	_ "github.com/ilter-ai/ilter/internal/features/mcp/protocol/v20260728" // registers via init()
 )

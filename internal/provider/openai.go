@@ -46,10 +46,26 @@ func (p *OpenAIProvider) Type() string {
 }
 
 func (p *OpenAIProvider) TransformRequest(ctx context.Context, req *model.ChatCompletionRequest) (*http.Request, error) {
+	outReq := req
+	if req != nil {
+		reqCopy := *req
+		// Convert any Anthropic-shaped image blocks (from a /v1/messages
+		// request routed to this OpenAI-compatible upstream) into image_url
+		// blocks. Always builds a fresh Messages slice so the original req
+		// (shared across load-balancer retry attempts) is never mutated.
+		reqCopy.Messages = translateMessagesToOpenAI(req.Messages)
+		if req.Stream && (req.StreamOptions == nil || !req.StreamOptions.IncludeUsage) {
+			// Always ask upstream for usage on streamed responses so cost accounting
+			// doesn't fall back to the char/4 estimate in internal/proxy/streaming.go.
+			reqCopy.StreamOptions = &model.StreamOptions{IncludeUsage: true}
+		}
+		outReq = &reqCopy
+	}
+
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
-	if err := enc.Encode(req); err != nil {
+	if err := enc.Encode(outReq); err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 	bodyBytes := buf.Bytes()
@@ -115,6 +131,73 @@ func (p *OpenAIProvider) TransformResponse(_ context.Context, resp *http.Respons
 
 func (p *OpenAIProvider) Client() *http.Client {
 	return p.client
+}
+
+func (p *OpenAIProvider) authorize(ctx context.Context, httpReq *http.Request) {
+	apiKey := SelectedAPIKeyFromContext(ctx)
+	if apiKey == "" {
+		keys := p.config.GetAPIKeys()
+		if len(keys) > 0 {
+			apiKey = keys[0]
+		}
+	}
+	if apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+	for k, v := range p.config.Headers {
+		httpReq.Header.Set(k, v)
+	}
+}
+
+// postOpenAIJSON marshals req, POSTs it to {base_url}/{path} with auth
+// applied, and decodes the JSON response into T. Shared by Embed and Rerank,
+// whose request/response plumbing is otherwise identical.
+func postOpenAIJSON[T any](ctx context.Context, p *OpenAIProvider, path string, req any) (*T, error) {
+	bodyBytes, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal %s request: %w", path, err)
+	}
+
+	url := fmt.Sprintf("%s/%s", p.config.BaseURL, path)
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create %s request: %w", path, err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	p.authorize(ctx, httpReq)
+
+	resp, err := p.client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("%s request failed: %w", path, err)
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %s response: %w", path, err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("provider returned status %d: %s", resp.StatusCode, strings.ReplaceAll(strings.ReplaceAll(string(respBytes), "\n", " "), "\r", ""))
+	}
+
+	var result T
+	if err := json.Unmarshal(respBytes, &result); err != nil {
+		return nil, fmt.Errorf("failed to decode %s response: %w", path, err)
+	}
+	return &result, nil
+}
+
+// Embed proxies to the OpenAI-compatible POST {base_url}/embeddings endpoint.
+// This works for OpenAI itself and for any self-hosted OpenAI-compatible
+// server registered as an "openai"-type provider (oMLX, vLLM, TEI, ...).
+func (p *OpenAIProvider) Embed(ctx context.Context, req *model.EmbeddingRequest) (*model.EmbeddingResponse, error) {
+	return postOpenAIJSON[model.EmbeddingResponse](ctx, p, "embeddings", req)
+}
+
+// Rerank proxies to POST {base_url}/rerank using the Cohere/TEI-style schema
+// adopted by self-hosted rerankers (oMLX, Xinference, Infinity, TEI).
+func (p *OpenAIProvider) Rerank(ctx context.Context, req *model.RerankRequest) (*model.RerankResponse, error) {
+	return postOpenAIJSON[model.RerankResponse](ctx, p, "rerank", req)
 }
 
 // discoverModelHeuristics applies naming convention heuristics per provider type

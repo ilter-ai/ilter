@@ -101,7 +101,7 @@ func runInitProd() error {
 	if err != nil {
 		return fmt.Errorf("wizard: %w", err)
 	}
-	if err := seed.ApplySeedData(rawDB, seedData); err != nil {
+	if err = seed.ApplySeedData(rawDB, seedData); err != nil {
 		return fmt.Errorf("seed apply: %w", err)
 	}
 	slog.Info("seed applied successfully")

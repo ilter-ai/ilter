@@ -66,7 +66,7 @@ func (p *AnthropicProvider) TransformRequest(ctx context.Context, req *model.Cha
 		case "user":
 			anthropicMsgs = append(anthropicMsgs, anthropicMessage{
 				Role:    "user",
-				Content: msg.Content,
+				Content: translateContentToAnthropic(msg.Content),
 			})
 		case "assistant":
 			anthropicMsgs = append(anthropicMsgs, anthropicMessage{
@@ -96,6 +96,19 @@ func (p *AnthropicProvider) TransformRequest(ctx context.Context, req *model.Cha
 			}
 		}
 		anthropicReq.Tools = aTools
+	}
+
+	if req.Thinking != nil {
+		anthropicReq.Thinking = &anthropicThinking{
+			Type:         req.Thinking.Type,
+			BudgetTokens: req.Thinking.BudgetTokens,
+		}
+		if req.Thinking.Type == "enabled" {
+			// Anthropic rejects thinking requests unless temperature is left at
+			// its default (1) and top_p is unset.
+			anthropicReq.Temperature = nil
+			anthropicReq.TopP = nil
+		}
 	}
 
 	if req.ToolChoice != nil {
@@ -169,12 +182,15 @@ func (p *AnthropicProvider) TransformResponse(_ context.Context, resp *http.Resp
 		finishReason = "length"
 	}
 
-	var fullText string
+	var fullText, fullThinking string
 	var toolCalls []model.ToolCall
 	for _, block := range anthResp.Content {
-		if block.Type == "text" {
+		switch block.Type {
+		case "text":
 			fullText += block.Text
-		} else if block.Type == "tool_use" {
+		case "thinking":
+			fullThinking += block.Thinking
+		case "tool_use":
 			argsBytes, _ := json.Marshal(block.Input)
 			toolCalls = append(toolCalls, model.ToolCall{
 				ID:   block.ID,
@@ -196,9 +212,10 @@ func (p *AnthropicProvider) TransformResponse(_ context.Context, resp *http.Resp
 			{
 				Index: 0,
 				Message: model.ChoiceMessage{
-					Role:      anthResp.Role,
-					Content:   fullText,
-					ToolCalls: toolCalls,
+					Role:             anthResp.Role,
+					Content:          fullText,
+					ReasoningContent: fullThinking,
+					ToolCalls:        toolCalls,
 				},
 				FinishReason: finishReason,
 			},
@@ -257,7 +274,7 @@ func (p *AnthropicProvider) UpdateConfig(baseURL string, apiKey string) {
 
 func buildAssistantContent(msg model.Message) any {
 	if len(msg.ToolCalls) == 0 {
-		return msg.Content
+		return translateContentToAnthropic(msg.Content)
 	}
 	var blocks []any
 	if strContent, ok := msg.Content.(string); ok && strContent != "" {

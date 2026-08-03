@@ -240,7 +240,7 @@ func TestPIIE2E_ReversibleMode(t *testing.T) {
 				content := parsed.Messages[0].Content.(string)
 
 				// Find the placeholder
-				for _, word := range strings.Fields(content) {
+				for word := range strings.FieldsSeq(content) {
 					if strings.HasPrefix(word, "PII:") {
 						placeholder = strings.TrimRight(word, ".,;!")
 						break
@@ -359,7 +359,7 @@ func TestPIIE2E_BlockMode(t *testing.T) {
 				if rr.Code != http.StatusUnprocessableEntity {
 					t.Fatalf("expected 422 for blocked PII, got %d: %s", rr.Code, rr.Body.String())
 				}
-				var errResp map[string]map[string]interface{}
+				var errResp map[string]map[string]any
 				if err := json.Unmarshal(rr.Body.Bytes(), &errResp); err != nil {
 					t.Fatalf("Failed to parse error response: %v", err)
 				}
@@ -427,7 +427,7 @@ func TestPIIE2E_ReversibleResponseUnmask(t *testing.T) {
 				}
 				content := parsed.Messages[0].Content.(string)
 
-				for _, word := range strings.Fields(content) {
+				for word := range strings.FieldsSeq(content) {
 					if strings.HasPrefix(word, "PII:") {
 						placeholder = strings.TrimRight(word, ".,;!")
 						break
@@ -531,8 +531,8 @@ func (p *mockCombinationsProvider) Client() *http.Client {
 
 			// Find the placeholder in the content (starts with "PII:")
 			placeholder := ""
-			words := strings.Fields(content)
-			for _, w := range words {
+			words := strings.FieldsSeq(content)
+			for w := range words {
 				w = strings.Trim(w, ".,!?<>")
 				if strings.HasPrefix(strings.ToUpper(w), "PII:") {
 					placeholder = w

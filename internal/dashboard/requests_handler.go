@@ -46,11 +46,6 @@ func decompressBytesInline(data []byte) *string {
 	return &s
 }
 
-// Helper function to create a string pointer inline
-func ptrStringInline(s string) *string {
-	return &s
-}
-
 func (h *RequestsHandler) HandleRequestDetail(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
@@ -121,8 +116,8 @@ func (h *RequestsHandler) HandleRequestDetail(w http.ResponseWriter, r *http.Req
 		detail.RequestBody = decompressBytesInline(reqBody)
 		detail.ResponseBody = decompressBytesInline(respBody)
 	} else {
-		detail.RequestBody = ptrStringInline(string(reqBody))
-		detail.ResponseBody = ptrStringInline(string(respBody))
+		detail.RequestBody = new(string(reqBody))
+		detail.ResponseBody = new(string(respBody))
 	}
 
 	model.WriteJSON(w, http.StatusOK, detail)

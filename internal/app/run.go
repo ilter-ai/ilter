@@ -208,7 +208,17 @@ func (a *App) RunServe() error {
 
 	r, chatChain := a.setupRouter()
 	a.r = r
-	a.chatChain = chatChain
+	a.proxyHandler.SetChatChain(chatChain)
+
+	// Anthropic-native passthrough. Runs its own translation + re-enters
+	// chatChain, which already carries auth/budget/PII/MCP/etc., so the full
+	// chatMiddlewares stack must not be mounted here again (that would
+	// double-charge budget and double-count rate limits). Auth alone is
+	// cheap and idempotent (a key lookup, no counters), so it's applied here
+	// too, to reject unauthenticated requests before the handler spends work
+	// reading and translating the body.
+	r.With(a.authMiddleware.Handler).Post("/v1/messages", a.proxyHandler.AnthropicMessages)
+	r.With(a.authMiddleware.Handler).Post("/v1/completions", a.proxyHandler.LegacyCompletions)
 
 	// OAuth PKCE endpoints (unprotected so VSCode can discover them).
 	r.Get("/.well-known/oauth-protected-resource", oauthEndpoints.ProtectedResourceMetadata)

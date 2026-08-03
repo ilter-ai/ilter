@@ -6,7 +6,7 @@ import (
 )
 
 func TestRegisterAndLookup(t *testing.T) {
-	handler := func(_ context.Context, _ map[string]interface{}) (interface{}, error) {
+	handler := func(_ context.Context, _ map[string]any) (any, error) {
 		return "ok", nil
 	}
 	tools := []ToolDef{
@@ -28,7 +28,7 @@ func TestRegisterAndLookup(t *testing.T) {
 }
 
 func TestRegisterDuplicate(t *testing.T) {
-	handler := func(_ context.Context, _ map[string]interface{}) (interface{}, error) {
+	handler := func(_ context.Context, _ map[string]any) (any, error) {
 		return "ok", nil
 	}
 
@@ -51,7 +51,7 @@ func TestLookupNonexistent(t *testing.T) {
 }
 
 func TestListTools(t *testing.T) {
-	handler := func(_ context.Context, _ map[string]interface{}) (interface{}, error) {
+	handler := func(_ context.Context, _ map[string]any) (any, error) {
 		return "ok", nil
 	}
 	tools := []ToolDef{
@@ -79,10 +79,10 @@ func TestListTools(t *testing.T) {
 }
 
 func TestMultipleServers(t *testing.T) {
-	handlerA := func(_ context.Context, _ map[string]interface{}) (interface{}, error) {
+	handlerA := func(_ context.Context, _ map[string]any) (any, error) {
 		return "a", nil
 	}
-	handlerB := func(_ context.Context, _ map[string]interface{}) (interface{}, error) {
+	handlerB := func(_ context.Context, _ map[string]any) (any, error) {
 		return "b", nil
 	}
 
@@ -111,7 +111,7 @@ func TestMultipleServers(t *testing.T) {
 }
 
 func TestListToolsNoDefs(t *testing.T) {
-	handler := func(_ context.Context, _ map[string]interface{}) (interface{}, error) {
+	handler := func(_ context.Context, _ map[string]any) (any, error) {
 		return "ok", nil
 	}
 

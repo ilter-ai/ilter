@@ -82,7 +82,7 @@ func runStartWithTimeout(t *testing.T, c *SSEClient, timeout time.Duration) erro
 }
 
 func TestSSEClient_Start_NegotiatesNewestByDefault(t *testing.T) {
-	srv := newFakeSSEServer(t, func(method string, params json.RawMessage) (json.RawMessage, *RPCError) {
+	srv := newFakeSSEServer(t, func(method string, _ json.RawMessage) (json.RawMessage, *RPCError) {
 		switch method {
 		case protocol.MethodServerDiscover:
 			result, _ := protocol.MarshalDiscoverResult(protocol.ImplementationInfo{Name: "fake", Version: "1"})
@@ -146,7 +146,7 @@ func TestSSEClient_Start_FallsBackToOlderVersion(t *testing.T) {
 }
 
 func TestSSEClient_Start_NoHandshakeAcceptedFails(t *testing.T) {
-	srv := newFakeSSEServer(t, func(method string, params json.RawMessage) (json.RawMessage, *RPCError) {
+	srv := newFakeSSEServer(t, func(_ string, _ json.RawMessage) (json.RawMessage, *RPCError) {
 		return nil, &RPCError{Code: ErrorCodeMethodNotFound, Message: "not found"}
 	})
 	defer srv.Close()

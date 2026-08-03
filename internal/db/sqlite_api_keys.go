@@ -157,17 +157,17 @@ func (s *SQLiteStore) CreateAPIKey(name string, groupID *int, userID *int, month
 		Name:                name,
 		HashedKey:           hash,
 		Salt:                "sha256",
-		KeyPrefix:           strPtr(prefix),
+		KeyPrefix:           &prefix,
 		GroupID:             intToInt64Ptr(groupID),
 		UserID:              intToInt64Ptr(userID),
-		Tags:                strPtr(tagsStr),
+		Tags:                &tagsStr,
 		MonthlyBudgetUsd:    &monthlyBudgetUSD,
 		MonthlyBudgetTokens: &monthlyBudgetTokens,
 		RateLimitRpm:        &rpm,
 		RateLimitTpm:        &rateLimitTPM,
 		RateLimitRetryAfter: nil,
-		AllowedModels:       strPtr(modelsStr),
-		AllowedProviders:    strPtr(providersStr),
+		AllowedModels:       &modelsStr,
+		AllowedProviders:    &providersStr,
 		Enabled:             1,
 		CreatedAt:           now,
 		UpdatedAt:           now,
@@ -465,13 +465,13 @@ func (s *SQLiteStore) UpdateAPIKey(id string, updates auth.APIKey, clearGroupID,
 		Name:                name,
 		GroupID:             intToInt64Ptr(groupID),
 		UserID:              intToInt64Ptr(userID),
-		Tags:                strPtr(tagsStr),
+		Tags:                &tagsStr,
 		MonthlyBudgetUsd:    &monthlyBudgetUSD,
 		MonthlyBudgetTokens: &monthlyBudgetTokens,
 		RateLimitRpm:        &rpm,
 		RateLimitTpm:        &rateLimitTPM,
-		AllowedModels:       strPtr(modelsStr),
-		AllowedProviders:    strPtr(providersStr),
+		AllowedModels:       &modelsStr,
+		AllowedProviders:    &providersStr,
 		Enabled:             boolToInt64(updates.Enabled),
 		UpdatedAt:           now,
 		ID:                  id,
@@ -575,8 +575,8 @@ func (s *SQLiteStore) RecordKeyUsage(keyID, date, model, provider string, tokens
 		TokensOut:    &tokensOut,
 		CostUsd:      &costUSD,
 		RequestCount: &requestCount,
-		Model:        strPtr(model),
-		Provider:     strPtr(provider),
+		Model:        new(model),
+		Provider:     new(provider),
 	})
 	if err != nil {
 		return fmt.Errorf("record key usage: %w", err)
@@ -671,7 +671,7 @@ func (s *SQLiteStore) GetCurrentMonthUsage(vkID string) (float64, error) {
 	return total, nil
 }
 
-func toFloat64(v interface{}) (float64, bool) {
+func toFloat64(v any) (float64, bool) {
 	switch val := v.(type) {
 	case float64:
 		return val, true

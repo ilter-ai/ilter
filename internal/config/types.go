@@ -119,7 +119,7 @@ type ProviderConfig struct {
 	Models          []ModelConfig        `json:"models,omitempty"`
 	Timeout         time.Duration        `json:"timeout,omitempty"`
 	MaxRetries      int                  `json:"max_retries,omitempty"`
-	CircuitBreaker  CircuitBreakerConfig `json:"circuit_breaker,omitempty"`
+	CircuitBreaker  CircuitBreakerConfig `json:"circuit_breaker"`
 	Headers         map[string]string    `json:"headers,omitempty"`
 	DiscoveryPublic bool                 `json:"discovery_public,omitempty"` // discovery /models endpoint works without API key
 }

@@ -1,82 +1,45 @@
 # ILTER vs. Other AI Gateways
 
-> Quick reference for developers evaluating AI gateway options. We try to be honest — if a competitor does something better, we say so.
+> We try to be honest here — if a competitor has something we don't, the table says so. Checked against each project's own repo/docs as of 2026-08; these projects ship fast, so re-verify before quoting externally.
 
 ---
 
-## Technical Comparison Matrix
+## Who is each one actually for?
 
-| Feature / Aspect | ILTER | LiteLLM | Portkey | HelixGateway |
-|------------------|-------|---------|---------|-------------|
-| **Language & Runtime** | Go 1.26.3 (single static binary) | Python | SaaS + self-host | Go |
-| **Container Base Image** | 3-stage empty `scratch` (<20MB) | Python Alpine (~400MB) | Cloud / Docker | Docker |
-| **CVE Attack Surface** | Virtually zero (no OS packages/shell) | Moderate (Python env + OS deps) | Closed SaaS / Docker | Low |
-| **Zero-config start** | ✅ `./ilter serve` | Requires config YAML | Requires API key | Requires config |
-| **Built-in PII masking** | ✅ Bloom Filter + Trie (<0.04ms) | ❌ | ❌ | ❌ |
-| **Agentic Loop Detection** | ✅ 4 parallel detectors | ❌ | ❌ | ❌ |
-| **MCP Gateway + OAuth** | ✅ Full (stdio/SSE + OAuth PKCE) | ❌ | ❌ | ❌ |
-| **Embedded Dashboard** | ✅ Astro + React (port 9191, zero node dep) | ✅ | ✅ (cloud) | ❌ |
-| **Prometheus Metrics** | ✅ Dedicated OTel endpoint (:9192) | ✅ | ✅ | Partial |
-| **Semantic Cache** | ✅ Redis VSS + SHA256 fallback | ✅ | ✅ | ❌ |
-| **Smart Routing** | ✅ Heuristic scorer + Rule DSL | ✅ | ✅ | Partial |
-| **Budget Enforcement** | ✅ Hard kill switch (USD) | ✅ | ✅ | Partial |
-| **Air-gap / On-prem** | ✅ Statically linked binary | Partial | ❌ (SaaS) | ✅ |
-| **Memory Footprint** | ~30 idle | ~200-400MB | N/A | ~50MB |
+| Project | Built for |
+|---|---|
+| **ILTER** | Teams self-hosting production LLM traffic who want governance (budget kill-switch, PII masking, guardrails, loop protection) built into the gateway itself — a single binary, no Python/Node runtime to install |
+| **[LiteLLM](https://github.com/BerriAI/litellm)** | Python-native teams/enterprises wanting the broadest provider + plugin ecosystem, fine running Python+Node+DB |
+| **[Higress](https://github.com/higress-group/higress)** | Platform/SRE teams already on Kubernetes + Istio who want AI routing as one more capability of their existing cloud-native ingress gateway |
+| **[New API](https://github.com/QuantumNous/new-api)** | People running or **reselling** AI API access — multi-tenant quota/billing, token shops, teams monetizing spare provider capacity |
+| **[OmniRoute](https://github.com/diegosouzapw/OmniRoute)** | Individual devs chasing free-tier tokens across 290+ providers for coding agents (Claude Code, Cursor, etc.) — cost-minimization first |
+| **[9Router](https://github.com/decolua/9router)** | Individual devs stretching subscription-based coding-tool quotas (Claude Code/Cursor) via auto-fallback + token compression |
+| **[Apache APISIX](https://github.com/apache/apisix)** | Large enterprises with an existing general-purpose API gateway who want LLM proxying as one more upstream type, not a dedicated AI governance layer |
 
 ---
 
-## ILTER vs. LiteLLM
+## Feature Comparison
 
-**LiteLLM** is a popular Python-based AI proxy. It features broad provider integration and a large ecosystem.
-
-**Choose LiteLLM if:**
-- Your backend is strictly Python-native and you rely on Python SDK extensions
-- You require support for legacy or niche providers (100+ integrations)
-
-**Choose ILTER if:**
-- You want a single binary with **zero Python or Node.js runtime dependencies**
-- You need high-performance **PII masking** (<0.04ms) before data leaves your network
-- You operate under strict image size (<20MB) or **zero-CVE OS attack surface** requirements (`scratch` base image)
-- You require **agentic loop protection** against runaway LLM loops
-- You use **MCP tools** and need seamless tool injection or OAuth PKCE authentication
-
----
-
-## ILTER vs. Portkey
-
-**Portkey** is a cloud-first SaaS gateway with rich observability features.
-
-**Choose Portkey if:**
-- You prefer a fully-managed SaaS platform
-- Cloud metadata processing is compliant with your security policies
-
-**Choose ILTER if:**
-- You need 100% on-premise or air-gapped data sovereignty
-- Strict compliance requires keeping prompts and PII entirely within your network
-- You want zero recurring proxy platform subscription costs
+| Feature | ILTER | LiteLLM | Higress | New API | OmniRoute | 9Router | APISIX |
+|---|---|---|---|---|---|---|---|
+| MCP Gateway (tool injection/interception) | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ (one-way bridge only) |
+| MCP Marketplace (browse + one-click install) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| OpenAPI → MCP tool bridge | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Smart Router (complexity-scored tiering) | ✅ | ⚠️ routing exists, not complexity-scored | ❌ | ❌ weighted-random only | ✅ 12-factor scoring | ⚠️ simple subscription→cheap→free chain | ❌ |
+| Provider fallback / circuit breaker | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ⚠️ generic, not LLM-aware |
+| Hard budget kill-switch (per key, USD) | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ (rate-limit only, not $) |
+| PII masking, in-process | ✅ names/email/phone/SSN/card | ⚠️ external Presidio/Lakera only | ❌ | ❌ | ⚠️ API-key/secret redaction only, not general PII | ❌ | ❌ |
+| Semantic cache (vector similarity) | ✅ | ✅ | ❌ | ❌ | ⚠️ leans on provider prompt-cache, not its own vector cache | ❌ | ❌ |
+| Prompt guardrails (injection/toxicity) | ✅ | ⚠️ external providers only | ❌ | ❌ | ✅ | ❌ | ❌ |
+| Agent loop detector | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Cron / scheduled AI workflows | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Single binary, no Python/Node runtime required | ✅ | ❌ Python+Node | ❌ Envoy/Istio+K8s | ✅ Go binary — genuine tie | ❌ Node/npm | ❌ Node/npm | ❌ Nginx/OpenResty+etcd |
 
 ---
 
-## Supported Upstream Providers
+## Honestly, where we don't win
 
-ILTER supports 9 provider integration types out of the box (`internal/provider/factory.go`):
-
-1. **OpenAI** (native format)
-2. **Anthropic** (content block & system message conversion)
-3. **Google Gemini** (OpenAI-compatible)
-4. **DeepSeek** (OpenAI-compatible)
-5. **OpenRouter** (automatic referrer/title header injection)
-6. **Ollama** (local inference models)
-7. **Qwen** (Alibaba DashScope OpenAI-compatible)
-8. **OpenCode** (`opencode_go` and `opencode_zen` SDK endpoints)
-9. **Mock** (built-in testing mock provider)
-
----
-
-## Honest Limitations
-
-Things ILTER does not do (yet):
-
-- **100+ exotic provider adapters** — ILTER focuses on major production LLM providers.
-- **Hosted SaaS multi-tenancy** — ILTER is designed as a self-hosted single-binary gateway.
-- **Audio / Video binary transformations** — Currently optimized for Chat Completions (`/v1/chat/completions`) and tool execution.
+- **Provider count & ecosystem:** LiteLLM (100+ integrations, years of plugins) and OmniRoute (290+ providers) both beat ILTER's 9 on raw coverage.
+- **Billing/reseller tooling:** New API's multi-tenant quota and reselling features are more built-out than anything ILTER offers — ILTER isn't built to run as a token shop.
+- **Cloud-native/K8s fit:** Higress and APISIX are the better choice if you're already running Istio/Envoy or APISIX and just want to bolt on LLM routing rather than run a separate gateway.
+- **Agent loop detection and cron workflows** are the two rows where we didn't find *any* equivalent elsewhere — genuinely unique to ILTER among this list, not just better-marketed.

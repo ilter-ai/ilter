@@ -82,10 +82,10 @@ type JobRun struct {
 	JobID            string         `json:"job_id"`
 	TriggerID        string         `json:"trigger_id,omitempty"` // which trigger fired
 	Status           string         `json:"status"`
-	LLMResult        sql.NullString `json:"llm_result,omitempty"`
-	LLMError         sql.NullString `json:"llm_error,omitempty"`
-	DeliveryResult   sql.NullString `json:"delivery_result,omitempty"`
-	DeliveryError    sql.NullString `json:"delivery_error,omitempty"`
+	LLMResult        sql.NullString `json:"llm_result"`
+	LLMError         sql.NullString `json:"llm_error"`
+	DeliveryResult   sql.NullString `json:"delivery_result"`
+	DeliveryError    sql.NullString `json:"delivery_error"`
 	PromptTokens     int            `json:"prompt_tokens"`
 	CompletionTokens int            `json:"completion_tokens"`
 	Cost             float64        `json:"cost"`
@@ -93,11 +93,11 @@ type JobRun struct {
 	FinishedAt       sql.NullTime   `json:"finished_at"`
 	DurationMs       int            `json:"duration_ms"`
 	Attempts         int            `json:"attempts"`
-	NextRetryAt      sql.NullTime   `json:"next_retry_at,omitempty"`
-	LastError        sql.NullString `json:"last_error,omitempty"`
-	RequestBody      sql.NullString `json:"request_body,omitempty"`
-	ExecutionKey     sql.NullString `json:"execution_key,omitempty"`
-	Steps            sql.NullString `json:"steps,omitempty"`
+	NextRetryAt      sql.NullTime   `json:"next_retry_at"`
+	LastError        sql.NullString `json:"last_error"`
+	RequestBody      sql.NullString `json:"request_body"`
+	ExecutionKey     sql.NullString `json:"execution_key"`
+	Steps            sql.NullString `json:"steps"`
 }
 
 // VarSource describes a single variable's origin.

@@ -3,6 +3,7 @@ package mcp
 import (
 	"fmt"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/ilter-ai/ilter/internal/config"
@@ -141,11 +142,11 @@ func (a *Authorizer) subjectCandidates(keyPrefix string, groupIDs []int, keyID s
 	if keyID != "" {
 		candidates = append(candidates, subject{"key", keyID})
 	}
-	if strings.HasPrefix(keyPrefix, "user:") {
-		candidates = append(candidates, subject{"user", strings.TrimPrefix(keyPrefix, "user:")})
+	if after, ok := strings.CutPrefix(keyPrefix, "user:"); ok {
+		candidates = append(candidates, subject{"user", after})
 	}
-	if strings.HasPrefix(keyPrefix, "group:") {
-		candidates = append(candidates, subject{"group", strings.TrimPrefix(keyPrefix, "group:")})
+	if after, ok := strings.CutPrefix(keyPrefix, "group:"); ok {
+		candidates = append(candidates, subject{"group", after})
 	}
 	for _, gid := range groupIDs {
 		candidates = append(candidates, subject{"group", fmt.Sprintf("%d", gid)})
@@ -194,13 +195,7 @@ func matchRuleSubject(rule config.MCPAccessRule, keyPrefix string, groupIDs []in
 		if len(groupIDs) == 0 {
 			return false
 		}
-		match := false
-		for _, gid := range groupIDs {
-			if gid == *rule.GroupID {
-				match = true
-				break
-			}
-		}
+		match := slices.Contains(groupIDs, *rule.GroupID)
 		if !match {
 			return false
 		}
@@ -273,7 +268,7 @@ func toolMatches(tools, toolName string) bool {
 
 	if strings.HasPrefix(tools, "[") {
 		t := strings.Trim(tools, "[]")
-		for _, tname := range strings.Split(t, ",") {
+		for tname := range strings.SplitSeq(t, ",") {
 			tname = strings.Trim(tname, "\" ")
 			if tname == toolName {
 				return true

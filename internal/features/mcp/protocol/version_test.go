@@ -53,6 +53,7 @@ func (s stubVersion) IsMethodSupported(string) bool             { return true }
 func (s stubVersion) WrapToolsListResult(toolsJSON json.RawMessage, _ string) (json.RawMessage, error) {
 	return toolsJSON, nil
 }
+
 func (s stubVersion) WrapCallToolResult(contentJSON json.RawMessage, _ bool) (json.RawMessage, error) {
 	return contentJSON, nil
 }
@@ -85,7 +86,7 @@ func TestNegotiate_UnknownFallsBackToNewestRegistered(t *testing.T) {
 	// blank-imported by this test binary.
 	for _, id := range Supported {
 		func(id ID) {
-			defer func() { recover() }() // ignore "registered twice" if already done by another test
+			defer func() { _ = recover() }() // ignore "registered twice" if already done by another test
 			Register(id, func() Version { return stubVersion{id: id} })
 		}(id)
 	}

@@ -135,7 +135,7 @@ func readSpecRaw(specURL string) ([]byte, error) {
 // it is Swagger 2.0 ("swagger2") or OpenAPI 3.x ("openapi3").
 func detectVersion(raw []byte) (string, error) {
 	// Try JSON first — handles JSON + YAML-parsable top-level maps.
-	var doc map[string]interface{}
+	var doc map[string]any
 	if err := json.Unmarshal(raw, &doc); err == nil {
 		if swagger, ok := doc["swagger"]; ok {
 			if s, ok := swagger.(string); ok && s == "2.0" {
@@ -159,7 +159,7 @@ func detectVersion(raw []byte) (string, error) {
 
 // unmarshalSpec unmarshals raw bytes into target (JSON only).
 // Swagger 2.0 specs should be in JSON format for this to work.
-func unmarshalSpec(raw []byte, target interface{}) error {
+func unmarshalSpec(raw []byte, target any) error {
 	return json.Unmarshal(raw, target)
 }
 

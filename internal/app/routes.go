@@ -66,5 +66,28 @@ func (a *App) setupRouter() (*chi.Mux, http.Handler) {
 		r.Get("/v1/models", a.proxyHandler.Models)
 	})
 
+	// Embeddings and rerank aren't conversational: PII masking, prompt
+	// injection, guardrails, MCP tool injection, semantic cache, and loop
+	// detection don't apply. Auth/rate-limit/budget still do.
+	var dataMiddlewares []func(http.Handler) http.Handler
+	if a.cfg.Metrics.Enabled {
+		dataMiddlewares = append(dataMiddlewares, iltermiddleware.ObservabilityHandler)
+	}
+	dataMiddlewares = append(dataMiddlewares, a.authMiddleware.Handler)
+	if a.rateLimitMiddleware != nil {
+		dataMiddlewares = append(dataMiddlewares, a.rateLimitMiddleware.Handler)
+	}
+	if a.budgetMiddleware != nil {
+		dataMiddlewares = append(dataMiddlewares, a.budgetMiddleware.Handler)
+	}
+
+	r.Group(func(r chi.Router) {
+		for _, mw := range dataMiddlewares {
+			r.Use(mw)
+		}
+		r.Post("/v1/embeddings", a.proxyHandler.Embeddings)
+		r.Post("/v1/rerank", a.proxyHandler.Rerank)
+	})
+
 	return r, chatChain
 }

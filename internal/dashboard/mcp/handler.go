@@ -124,7 +124,7 @@ func extractOAuthURL(stderr string) string {
 	if stderr == "" {
 		return ""
 	}
-	for _, line := range strings.Split(stderr, "\n") {
+	for line := range strings.SplitSeq(stderr, "\n") {
 		line = strings.TrimSpace(line)
 		if strings.Contains(line, "/authorize") && strings.HasPrefix(line, "https://") {
 			return line

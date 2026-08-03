@@ -21,7 +21,7 @@ import (
 // "&mcp_protocol_version=2026-07-28"), returning the final /token response
 // body and the /authorize POST's redirect_uri so tests can inspect
 // version-specific behavior (iss presence) at both steps.
-func runFullAuthorizeFlow(t *testing.T, o *OAuthEndpoints, store *mcp.OAuthStore, rawKey, clientID, versionSuffix string) (tokenResp map[string]any, authorizeRedirectURI string) {
+func runFullAuthorizeFlow(t *testing.T, o *OAuthEndpoints, _ *mcp.OAuthStore, rawKey, clientID, versionSuffix string) (tokenResp map[string]any, authorizeRedirectURI string) {
 	t.Helper()
 
 	req := httptest.NewRequest("GET", "/authorize?response_type=code&client_id="+url.QueryEscape(clientID)+
@@ -125,7 +125,7 @@ func TestOAuthEndpoints_Register_2026Hint_RequiresApplicationType(t *testing.T) 
 }
 
 func TestOAuthEndpoints_CIMD_2026Hint_ResolvesValidMetadataDocument(t *testing.T) {
-	cimd := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	cimd := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"client_name":"Test Client","redirect_uris":["http://localhost:9999/callback"]}`))
 	}))

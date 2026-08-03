@@ -17,7 +17,7 @@
 
 | Port | Service | Protocol | Description |
 |------|---------|----------|-------------|
-| **8181** | Proxy API | HTTP/1.1, SSE | Main LLM Gateway (`/v1/chat/completions`, `/v1/models`, `/admin/*`, `/mcp`, OAuth PKCE) |
+| **8181** | Proxy API | HTTP/1.1, SSE | Main LLM Gateway (`/v1/chat/completions`, `/v1/messages`, `/v1/completions`, `/v1/embeddings`, `/v1/rerank`, `/v1/models`, `/admin/*`, `/mcp`, OAuth PKCE) |
 | **9191** | Dashboard | HTTP/1.1, JSON | Embedded Web UI + Admin REST API (`/api/*`) |
 | **9192** | Metrics | HTTP/1.1 | OpenTelemetry Prometheus scrape endpoint (`/metrics`) |
 

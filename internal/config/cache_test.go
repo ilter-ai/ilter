@@ -144,11 +144,9 @@ func TestConfigCache_ConcurrentReads(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// Readers: concurrent Get() in a tight loop
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for j := 0; j < 50; j++ {
+	for range 10 {
+		wg.Go(func() {
+			for range 50 {
 				snap := cache.Get()
 				if snap == nil {
 					panic("nil snapshot during concurrent read")
@@ -161,18 +159,16 @@ func TestConfigCache_ConcurrentReads(t *testing.T) {
 				_ = snap.RoutingConfig()
 				_ = snap.OpenAPITools()
 			}
-		}()
+		})
 	}
 
 	// Writer: Refresh in parallel with readers
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 10 {
+		wg.Go(func() {
 			if err := cache.Refresh(ctx, stores); err != nil {
 				t.Errorf("Refresh error: %v", err)
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

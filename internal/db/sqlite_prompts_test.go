@@ -251,7 +251,7 @@ func TestDeletePromptTemplate_CascadesVersions(t *testing.T) {
 	require.NoError(t, err)
 
 	// Update a few times to create version history
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		err = ts.store.UpdatePromptTemplate(config.PromptTemplate{
 			ID:      id,
 			Name:    "cascade-test",

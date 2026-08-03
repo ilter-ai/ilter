@@ -225,7 +225,7 @@ func TestPIIMasker_ReversibleAndBlock(t *testing.T) {
 			content := parsedBody.Messages[0].Content.(string)
 
 			// Capture placeholders
-			for _, word := range strings.Fields(content) {
+			for word := range strings.FieldsSeq(content) {
 				if strings.HasPrefix(word, "PII:") {
 					capturedPlaceholders = append(capturedPlaceholders, strings.TrimRight(word, ".,"))
 				}
@@ -290,7 +290,7 @@ func TestPIIMasker_ReversibleAndBlock(t *testing.T) {
 			t.Errorf("Expected status 422, got %d", rr.Code)
 		}
 
-		var errResp map[string]map[string]interface{}
+		var errResp map[string]map[string]any
 		if err := json.Unmarshal(rr.Body.Bytes(), &errResp); err != nil {
 			t.Fatalf("Failed to parse error response: %v", err)
 		}
@@ -330,7 +330,7 @@ func TestPIIMasker_ReversibleStreamingSplit(t *testing.T) {
 
 		// John should have been masked with something like PII:NAMES:abc123
 		// Let's capture the placeholder
-		for _, word := range strings.Fields(content) {
+		for word := range strings.FieldsSeq(content) {
 			if strings.HasPrefix(word, "PII:") {
 				placeholder = strings.TrimRight(word, ".,")
 				break
@@ -397,7 +397,7 @@ func TestPIIResponseUnmask(t *testing.T) {
 			}
 			content := parsed.Messages[0].Content.(string)
 
-			for _, word := range strings.Fields(content) {
+			for word := range strings.FieldsSeq(content) {
 				if strings.HasPrefix(word, "PII:") {
 					placeholder = strings.TrimRight(word, ".,")
 					break
@@ -460,7 +460,7 @@ func TestPIIReversibleCrossRequest(t *testing.T) {
 		}
 		content := parsed.Messages[0].Content.(string)
 
-		for _, word := range strings.Fields(content) {
+		for word := range strings.FieldsSeq(content) {
 			if strings.HasPrefix(word, "PII:") {
 				placeholder = strings.TrimRight(word, ".,")
 				break
@@ -630,7 +630,7 @@ func TestPIIPhoneUnmask(t *testing.T) {
 		}
 		content := parsed.Messages[0].Content.(string)
 
-		for _, word := range strings.Fields(content) {
+		for word := range strings.FieldsSeq(content) {
 			if strings.HasPrefix(word, "PII:") {
 				placeholder = strings.TrimRight(word, ".,")
 				break

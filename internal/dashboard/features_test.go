@@ -56,7 +56,7 @@ func TestFeatures_ToggleGlobal(t *testing.T) {
 	store, _, router := setupFeatureServer(t)
 
 	// Toggle a known feature flag
-	toggleBody := map[string]interface{}{
+	toggleBody := map[string]any{
 		"feature_key": "pii",
 		"enabled":     false,
 	}

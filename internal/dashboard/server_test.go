@@ -466,12 +466,12 @@ func TestDashboardServer_API(t *testing.T) {
 			t.Fatalf("expected 200 OK, got %d. Body: %s", rr.Code, rr.Body.String())
 		}
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("failed to unmarshal keys: %v", err)
 		}
 
-		keys, ok := resp["api_keys"].([]interface{})
+		keys, ok := resp["api_keys"].([]any)
 		if !ok {
 			t.Fatalf("expected 'api_keys' array in response, got keys=%v", resp["keys"])
 		}
@@ -481,7 +481,7 @@ func TestDashboardServer_API(t *testing.T) {
 	})
 
 	t.Run("POST /keys (create)", func(t *testing.T) {
-		createReq := map[string]interface{}{
+		createReq := map[string]any{
 			"name":       "test-app",
 			"budget":     50.0,
 			"rate_limit": 100,
@@ -492,7 +492,7 @@ func TestDashboardServer_API(t *testing.T) {
 			t.Fatalf("expected 200 OK, got %d. Body: %s", rr.Code, rr.Body.String())
 		}
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("failed to unmarshal create response: %v", err)
 		}
@@ -510,7 +510,7 @@ func TestDashboardServer_API(t *testing.T) {
 	})
 
 	t.Run("POST /keys (missing name)", func(t *testing.T) {
-		createReq := map[string]interface{}{
+		createReq := map[string]any{
 			"budget": 10.0,
 		}
 		body, _ := json.Marshal(createReq)
@@ -526,12 +526,12 @@ func TestDashboardServer_API(t *testing.T) {
 			t.Fatalf("expected 200 OK, got %d. Body: %s", rr.Code, rr.Body.String())
 		}
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("failed to unmarshal keys: %v", err)
 		}
 
-		keys, ok := resp["api_keys"].([]interface{})
+		keys, ok := resp["api_keys"].([]any)
 		if !ok {
 			t.Fatal("expected 'api_keys' array in response")
 		}
@@ -541,7 +541,7 @@ func TestDashboardServer_API(t *testing.T) {
 	})
 
 	t.Run("DELETE /keys/{id}", func(t *testing.T) {
-		createReq := map[string]interface{}{
+		createReq := map[string]any{
 			"name":       "delete-me",
 			"budget":     5.0,
 			"rate_limit": 10,
@@ -551,7 +551,7 @@ func TestDashboardServer_API(t *testing.T) {
 		if rr.Code != http.StatusOK {
 			t.Fatalf("failed to create key for delete test: %d", rr.Code)
 		}
-		var createResp map[string]interface{}
+		var createResp map[string]any
 		if err := json.Unmarshal(rr.Body.Bytes(), &createResp); err != nil {
 			t.Fatalf("failed to unmarshal create response: %v", err)
 		}
@@ -566,13 +566,13 @@ func TestDashboardServer_API(t *testing.T) {
 		}
 
 		rr = makeRequest("GET", "/api/keys", nil, true)
-		var resp map[string]interface{}
+		var resp map[string]any
 		if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("failed to unmarshal keys response: %v", err)
 		}
-		keys := resp["api_keys"].([]interface{})
+		keys := resp["api_keys"].([]any)
 		for _, k := range keys {
-			key := k.(map[string]interface{})
+			key := k.(map[string]any)
 			if key["id"].(string) == keyID {
 				t.Errorf("key %s was not deleted", keyID)
 			}
@@ -762,7 +762,7 @@ func TestDashboardServer_AdditionalHandlers(t *testing.T) {
 			t.Fatalf("expected 200 OK, got %d: %s", rr.Code, rr.Body.String())
 		}
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("failed to unmarshal: %v", err)
 		}
@@ -793,7 +793,7 @@ func TestDashboardServer_AdditionalHandlers(t *testing.T) {
 			t.Fatalf("expected 200 OK, got %d: %s", rr.Code, rr.Body.String())
 		}
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("failed to unmarshal: %v", err)
 		}
@@ -1185,8 +1185,8 @@ func TestDashboardServer_StartAndAuth(t *testing.T) {
 			authToken := server.cfg.Dashboard.AuthToken
 			authHeader := r.Header.Get("Authorization")
 			token := ""
-			if strings.HasPrefix(authHeader, "Bearer ") {
-				token = strings.TrimPrefix(authHeader, "Bearer ")
+			if after, ok := strings.CutPrefix(authHeader, "Bearer "); ok {
+				token = after
 			} else if authHeader != "" {
 				token = authHeader
 			}
@@ -1337,8 +1337,8 @@ func TestHandleLogin(t *testing.T) {
 			}
 
 			// Verify response body contains expected fields (ignore exact whitespace)
-			var gotMap map[string]interface{}
-			var wantMap map[string]interface{}
+			var gotMap map[string]any
+			var wantMap map[string]any
 			if err := json.Unmarshal(rr.Body.Bytes(), &gotMap); err != nil {
 				t.Fatalf("failed to unmarshal response: %v", err)
 			}

@@ -66,10 +66,10 @@ func TestParseSearchResponse_Nil(t *testing.T) {
 func TestParseSearchResponse_RESP2(t *testing.T) {
 	// Simulate RESP2 array: [count, _, [key, val, key, val], ...]
 	// FT.SEARCH returns: [1, "key:name", ["response", "hello", "score", "0.05"]]
-	val := []interface{}{
+	val := []any{
 		int64(1),
 		"ilter:cache:abc",
-		[]interface{}{
+		[]any{
 			"response", "hello world",
 			"score", "0.05",
 		},
@@ -88,10 +88,10 @@ func TestParseSearchResponse_RESP2(t *testing.T) {
 }
 
 func TestParseSearchResponse_RESP2_AboveThreshold(t *testing.T) {
-	val := []interface{}{
+	val := []any{
 		int64(1),
 		"ilter:cache:abc",
-		[]interface{}{
+		[]any{
 			"response", "far away",
 			"score", "0.5",
 		},
@@ -110,10 +110,10 @@ func TestParseSearchResponse_RESP2_AboveThreshold(t *testing.T) {
 }
 
 func TestParseSearchResponse_RESP3_MapString(t *testing.T) {
-	val := map[string]interface{}{
-		"results": []interface{}{
-			map[string]interface{}{
-				"extra_attributes": map[string]interface{}{
+	val := map[string]any{
+		"results": []any{
+			map[string]any{
+				"extra_attributes": map[string]any{
 					"response": "cached response",
 					"score":    "0.03",
 				},
@@ -134,10 +134,10 @@ func TestParseSearchResponse_RESP3_MapString(t *testing.T) {
 }
 
 func TestParseSearchResponse_RESP3_MapInterface(t *testing.T) {
-	val := map[interface{}]interface{}{
-		"results": []interface{}{
-			map[interface{}]interface{}{
-				"extra_attributes": map[interface{}]interface{}{
+	val := map[any]any{
+		"results": []any{
+			map[any]any{
+				"extra_attributes": map[any]any{
 					"response": "cached response",
 					"score":    "0.03",
 				},
@@ -158,10 +158,10 @@ func TestParseSearchResponse_RESP3_MapInterface(t *testing.T) {
 }
 
 func TestParseSearchResponse_RESP3_Float64Score(t *testing.T) {
-	val := map[string]interface{}{
-		"results": []interface{}{
-			map[string]interface{}{
-				"extra_attributes": map[string]interface{}{
+	val := map[string]any{
+		"results": []any{
+			map[string]any{
+				"extra_attributes": map[string]any{
 					"response": "float score",
 					"score":    float64(0.04),
 				},
@@ -182,10 +182,10 @@ func TestParseSearchResponse_RESP3_Float64Score(t *testing.T) {
 }
 
 func TestParseSearchResponse_RESP3_Int64Score(t *testing.T) {
-	val := map[string]interface{}{
-		"results": []interface{}{
-			map[string]interface{}{
-				"extra_attributes": map[string]interface{}{
+	val := map[string]any{
+		"results": []any{
+			map[string]any{
+				"extra_attributes": map[string]any{
 					"response": "int score",
 					"score":    int64(0),
 				},
@@ -206,8 +206,8 @@ func TestParseSearchResponse_RESP3_Int64Score(t *testing.T) {
 }
 
 func TestParseSearchResponse_EmptyResults(t *testing.T) {
-	val := map[string]interface{}{
-		"results": []interface{}{},
+	val := map[string]any{
+		"results": []any{},
 	}
 
 	resp, score, found := parseSearchResponse(val, 0.08)

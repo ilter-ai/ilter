@@ -54,7 +54,6 @@ func (tce *ToolCallExecutor) ExecuteToolCalls(
 	g, gCtx := errgroup.WithContext(ctx)
 
 	for i, tc := range toolCalls {
-		i, tc := i, tc // capture range vars
 		g.Go(func() error {
 			var args json.RawMessage
 			if tc.Function.Arguments != "" {

@@ -182,8 +182,8 @@ func ParseXMLArgValue(v string) any {
 // parseXMLToolCall parses a single <invoke> block and returns the ToolCall and remaining text.
 func parseXMLToolCall(text string) (*model.ToolCall, string) {
 	startTag := "<invoke name=\""
-	idx := strings.Index(text, startTag)
-	if idx < 0 {
+	found := strings.Contains(text, startTag)
+	if !found {
 		return nil, ""
 	}
 

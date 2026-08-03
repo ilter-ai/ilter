@@ -11,6 +11,11 @@ type anthropicTool struct {
 	InputSchema any    `json:"input_schema"`
 }
 
+type anthropicThinking struct {
+	Type         string `json:"type"`
+	BudgetTokens int    `json:"budget_tokens,omitempty"`
+}
+
 type anthropicRequest struct {
 	Model       string             `json:"model"`
 	Messages    []anthropicMessage `json:"messages"`
@@ -22,6 +27,7 @@ type anthropicRequest struct {
 	Stream      bool               `json:"stream,omitempty"`
 	Tools       []anthropicTool    `json:"tools,omitempty"`
 	ToolChoice  any                `json:"tool_choice,omitempty"`
+	Thinking    *anthropicThinking `json:"thinking,omitempty"`
 }
 
 type anthropicResponse struct {
@@ -31,11 +37,12 @@ type anthropicResponse struct {
 	Model      string `json:"model"`
 	StopReason string `json:"stop_reason"`
 	Content    []struct {
-		Type  string         `json:"type"`
-		Text  string         `json:"text,omitempty"`
-		ID    string         `json:"id,omitempty"`
-		Name  string         `json:"name,omitempty"`
-		Input map[string]any `json:"input,omitempty"`
+		Type     string         `json:"type"`
+		Text     string         `json:"text,omitempty"`
+		Thinking string         `json:"thinking,omitempty"`
+		ID       string         `json:"id,omitempty"`
+		Name     string         `json:"name,omitempty"`
+		Input    map[string]any `json:"input,omitempty"`
 	} `json:"content"`
 	Usage struct {
 		InputTokens  int `json:"input_tokens"`
@@ -63,6 +70,7 @@ type anthropicSSEEvent struct {
 	Delta *struct {
 		Type        string `json:"type"`
 		Text        string `json:"text,omitempty"`
+		Thinking    string `json:"thinking,omitempty"`
 		PartialJSON string `json:"partial_json,omitempty"`
 		StopReason  string `json:"stop_reason,omitempty"`
 	} `json:"delta,omitempty"`

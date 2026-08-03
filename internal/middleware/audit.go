@@ -37,11 +37,9 @@ func NewAuditLoggerMiddleware(store *db.SQLiteStore) *AuditLoggerMiddleware {
 		ch:    make(chan AuditLogEntry, 1000),
 		done:  make(chan struct{}),
 	}
-	l.wg.Add(1)
-	go func() {
-		defer l.wg.Done()
+	l.wg.Go(func() {
 		l.worker()
-	}()
+	})
 	return l
 }
 

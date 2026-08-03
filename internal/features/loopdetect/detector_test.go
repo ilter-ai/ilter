@@ -327,7 +327,7 @@ func TestProgressiveDelay_Cap(t *testing.T) {
 
 	// Send enough requests to push past the cap
 	var lastDelay time.Duration
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		res, err := d.Check("1", sessionID, messages)
 		if err != nil {
 			t.Fatalf("request %d: unexpected error: %v", i, err)

@@ -99,7 +99,7 @@ func TestOutputDetector_OffMode_NeverDetects(t *testing.T) {
 
 	sentence := "Same thing over and over. Same thing over and over."
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		r := d.Feed(sentence)
 		if r.Detected {
 			t.Fatal("detected while mode=off")
@@ -112,7 +112,7 @@ func TestOutputDetector_ShortSentence_Ignored(t *testing.T) {
 
 	// Short sentences should NOT trigger detection
 	short := "Merhaba!"
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		r := d.Feed(short)
 		if r.Detected {
 			t.Fatal("short sentence should not trigger detection")
@@ -215,7 +215,7 @@ func TestOutputDetector_EmptyDelta(t *testing.T) {
 	d := NewOutputDetector(3, 10, "enforce")
 
 	// Empty deltas should not affect state
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		r := d.Feed("")
 		if r.Detected {
 			t.Fatal("empty delta should not trigger detection")

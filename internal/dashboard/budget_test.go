@@ -56,7 +56,7 @@ func TestBudgetHandlers_UserBudget(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	var resp map[string]interface{}
+	var resp map[string]any
 	err := json.Unmarshal(rr.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, float64(user.ID), resp["user_id"])
@@ -79,7 +79,7 @@ func TestBudgetHandlers_GroupBudget(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	var resp map[string]interface{}
+	var resp map[string]any
 	err := json.Unmarshal(rr.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, float64(group.ID), resp["group_id"])
@@ -110,7 +110,7 @@ func TestBudgetHandlers_SetUserBudget(t *testing.T) {
 	rr2 := httptest.NewRecorder()
 	r.ServeHTTP(rr2, req2)
 
-	var resp map[string]interface{}
+	var resp map[string]any
 	err := json.Unmarshal(rr2.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, 150.0, resp["monthly_budget"])
@@ -139,7 +139,7 @@ func TestBudgetHandlers_SetGroupBudget(t *testing.T) {
 	rr2 := httptest.NewRecorder()
 	r.ServeHTTP(rr2, req2)
 
-	var resp map[string]interface{}
+	var resp map[string]any
 	err := json.Unmarshal(rr2.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, 300.0, resp["monthly_budget"])

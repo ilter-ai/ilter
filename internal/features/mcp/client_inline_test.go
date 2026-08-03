@@ -128,7 +128,7 @@ func TestInlineClient_NegotiatedVersion_ManualPin(t *testing.T) {
 func TestInlineClientToolsList(t *testing.T) {
 	serverID := "test-inline-toolslist"
 	tools := []inline.ToolDef{
-		{Name: "greet", Description: "Greets the user", InputSchema: map[string]interface{}{"type": "object"}},
+		{Name: "greet", Description: "Greets the user", InputSchema: map[string]any{"type": "object"}},
 	}
 	_ = inline.RegisterTools(serverID, testHandler, tools)
 	t.Cleanup(func() {})
@@ -161,9 +161,9 @@ func TestInlineClientToolsCall(t *testing.T) {
 	client, _ := NewInlineClient(&ServerInfo{ID: serverID})
 	_ = client.Start(context.Background())
 
-	params, _ := json.Marshal(map[string]interface{}{
+	params, _ := json.Marshal(map[string]any{
 		"name": "test_tool",
-		"arguments": map[string]interface{}{
+		"arguments": map[string]any{
 			"input": "hello",
 		},
 	})
@@ -259,6 +259,6 @@ func TestInlineClientInvalidParams(t *testing.T) {
 }
 
 // testHandler is a simple inline handler used across tests.
-func testHandler(_ context.Context, args map[string]interface{}) (interface{}, error) {
-	return map[string]interface{}{"echo": args}, nil
+func testHandler(_ context.Context, args map[string]any) (any, error) {
+	return map[string]any{"echo": args}, nil
 }

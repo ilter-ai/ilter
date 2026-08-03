@@ -112,9 +112,9 @@ func TestBudgetE2E_MonthlyExceedAndReset(t *testing.T) {
 	if rr.Code != http.StatusTooManyRequests {
 		t.Fatalf("expected 429 for monthly exceed, got %d: %s", rr.Code, rr.Body.String())
 	}
-	var errResp map[string]interface{}
+	var errResp map[string]any
 	_ = json.Unmarshal(rr.Body.Bytes(), &errResp)
-	if e, _ := errResp["error"].(map[string]interface{}); e["type"] != "budget_exceeded" {
+	if e, _ := errResp["error"].(map[string]any); e["type"] != "budget_exceeded" {
 		t.Errorf("expected budget_exceeded type, got %v", e["type"])
 	}
 
@@ -172,9 +172,9 @@ func TestBudgetE2E_DailyExceedAndReset(t *testing.T) {
 	if rr.Code != http.StatusTooManyRequests {
 		t.Fatalf("expected 429 for daily exceed, got %d: %s", rr.Code, rr.Body.String())
 	}
-	var errResp map[string]interface{}
+	var errResp map[string]any
 	_ = json.Unmarshal(rr.Body.Bytes(), &errResp)
-	if e, _ := errResp["error"].(map[string]interface{}); e["type"] != "budget_exceeded" {
+	if e, _ := errResp["error"].(map[string]any); e["type"] != "budget_exceeded" {
 		t.Errorf("expected budget_exceeded type, got %v", e["type"])
 	}
 

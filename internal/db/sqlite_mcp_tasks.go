@@ -40,8 +40,8 @@ func (s *SQLiteStore) CreateMCPTask(ctx context.Context, t MCPTaskRow) error {
 	// read-back of these columns byte-typed and Scan-compatible.
 	return s.queries.CreateMCPTask(ctx, sqlc.CreateMCPTaskParams{
 		ID:                   t.ID,
-		KeyID:                strPtr(t.KeyID),
-		ServerID:             strPtr(t.ServerID),
+		KeyID:                new(t.KeyID),
+		ServerID:             new(t.ServerID),
 		ToolName:             t.ToolName,
 		Arguments:            args,
 		Status:               t.Status,
@@ -83,7 +83,7 @@ func (s *SQLiteStore) UpdateMCPTaskStatus(ctx context.Context, id, status string
 	return s.queries.UpdateMCPTaskStatus(ctx, sqlc.UpdateMCPTaskStatusParams{
 		Status:       status,
 		Result:       result,
-		ErrorMessage: strPtr(errMsg),
+		ErrorMessage: new(errMsg),
 		ID:           id,
 	})
 }

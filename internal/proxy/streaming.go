@@ -186,10 +186,7 @@ func (h *Handler) handleStreaming(
 					charCount += len(sContent)
 				}
 			}
-			pTokens = charCount / 4
-			if pTokens < 1 {
-				pTokens = 1
-			}
+			pTokens = max(charCount/4, 1)
 			cTokens = len(accumulatedCompletionText) / 4
 		}
 
@@ -276,8 +273,8 @@ func (h *Handler) handleStreaming(
 		}
 
 		var dataBytes []byte
-		if bytes.HasPrefix(line, []byte("data: ")) {
-			dataBytes = bytes.TrimPrefix(line, []byte("data: "))
+		if after, ok0 := bytes.CutPrefix(line, []byte("data: ")); ok0 {
+			dataBytes = after
 		} else {
 			dataBytes = line
 		}

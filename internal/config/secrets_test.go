@@ -77,7 +77,7 @@ func TestGenerateKey_Format(t *testing.T) {
 
 func TestGenerateKey_Randomness(t *testing.T) {
 	seen := make(map[string]bool, 100)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		k, err := generateKey()
 		assert.NoError(t, err, "generateKey should not error at iteration %d", i)
 		assert.False(t, seen[k], "key %q should be unique", k)
@@ -244,7 +244,7 @@ func TestWriteSecretsFile_DeterministicSort(t *testing.T) {
 
 	// Collect KEY=VALUE lines in order
 	var kvLines []string
-	for _, l := range strings.Split(string(data), "\n") {
+	for l := range strings.SplitSeq(string(data), "\n") {
 		l = strings.TrimSpace(l)
 		if l == "" || strings.HasPrefix(l, "#") {
 			continue
@@ -658,10 +658,8 @@ func TestResolveSecrets_ConcurrentCalls(t *testing.T) {
 	var mu sync.Mutex
 	anySucceeded := false
 
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 10 {
+		wg.Go(func() {
 			cfg := &Config{}
 			err := ResolveSecrets(cfg, dbPath)
 			if err == nil {
@@ -677,7 +675,7 @@ func TestResolveSecrets_ConcurrentCalls(t *testing.T) {
 			// target file (os.Rename is atomic on POSIX).
 			assert.ErrorContains(t, err, "rename secrets file",
 				"only rename errors are expected from concurrent call")
-		}()
+		})
 	}
 
 	wg.Wait()

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 	"sync"
@@ -102,9 +103,7 @@ func (p *ToolProvider) Reload(specs []config.OpenAPISpecConfig) error {
 		}
 		spMap[specs[i].Name] = i
 		allOps = append(allOps, ops...)
-		for k, v := range idx {
-			opMap[k] = v
-		}
+		maps.Copy(opMap, idx)
 	}
 
 	p.specs = specs

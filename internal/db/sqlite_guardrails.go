@@ -102,11 +102,11 @@ func (s *SQLiteStore) CreateGuardrailRule(p CreateGuardrailRuleParams) error {
 	return s.queries.CreateGuardrailRule(context.Background(), sqlc.CreateGuardrailRuleParams{
 		ID:          p.ID,
 		Name:        p.Name,
-		Description: strPtr(p.Description),
+		Description: new(p.Description),
 		Patterns:    p.Patterns,
 		Mode:        p.Mode,
 		Severity:    p.Severity,
-		TargetType:  strPtr(p.TargetType),
+		TargetType:  new(p.TargetType),
 		TargetID:    intToInt64Ptr(p.TargetID),
 		Type:        p.Type,
 	})
@@ -166,12 +166,12 @@ func (s *SQLiteStore) DeleteGuardrailRule(id string) (bool, error) {
 // InsertGuardrailEvent records a guardrail decision (block/warn) for the violation log.
 func (s *SQLiteStore) InsertGuardrailEvent(keyID, guardrailType, actionTaken, modelName, provider, details string) error {
 	return s.queries.InsertGuardrailEvent(context.Background(), sqlc.InsertGuardrailEventParams{
-		KeyID:         strPtr(keyID),
+		KeyID:         new(keyID),
 		GuardrailType: guardrailType,
 		ActionTaken:   actionTaken,
-		Model:         strPtr(modelName),
-		Provider:      strPtr(provider),
-		Details:       strPtr(details),
+		Model:         new(modelName),
+		Provider:      new(provider),
+		Details:       new(details),
 	})
 }
 

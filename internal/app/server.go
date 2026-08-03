@@ -36,8 +36,10 @@ func (a *App) startDashboard() *http.Server {
 	if a.piiMaskerMiddleware != nil {
 		opts = append(opts, dashboard.WithPIIMasker(a.piiMaskerMiddleware))
 	}
-	if a.chatChain != nil {
-		opts = append(opts, dashboard.WithChatChain(a.chatChain))
+	if a.proxyHandler != nil {
+		if chain := a.proxyHandler.ChatChain(); chain != nil {
+			opts = append(opts, dashboard.WithChatChain(chain))
+		}
 	}
 	if a.semanticCacheMiddleware != nil {
 		opts = append(opts, dashboard.WithSemanticCache(a.semanticCacheMiddleware))

@@ -164,19 +164,19 @@ func TestAudit_LogBodiesEnabled(t *testing.T) {
 	require.True(t, reqBodyDB.Valid)
 	t.Logf("  request_body: %s", reqBodyDB.String)
 
-	var storedReq map[string]interface{}
+	var storedReq map[string]any
 	err = json.Unmarshal([]byte(reqBodyDB.String), &storedReq)
 	require.NoError(t, err, "request_body must be valid JSON")
 
-	messages, ok := storedReq["messages"].([]interface{})
+	messages, ok := storedReq["messages"].([]any)
 	require.True(t, ok, "request_body must contain 'messages' array")
 	require.Len(t, messages, 2)
 
-	msg0 := messages[0].(map[string]interface{})
+	msg0 := messages[0].(map[string]any)
 	assert.Equal(t, "system", msg0["role"])
 	assert.Equal(t, "You are a helpful assistant.", msg0["content"])
 
-	msg1 := messages[1].(map[string]interface{})
+	msg1 := messages[1].(map[string]any)
 	assert.Equal(t, "user", msg1["role"])
 	assert.Equal(t, "What is the capital of France?", msg1["content"])
 

@@ -76,8 +76,8 @@ func sseLines(t *testing.T, body []byte) []string {
 	scanner := bufio.NewScanner(bytes.NewReader(body))
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, "data: ") {
-			lines = append(lines, strings.TrimPrefix(line, "data: "))
+		if after, ok := strings.CutPrefix(line, "data: "); ok {
+			lines = append(lines, after)
 		}
 	}
 	return lines
@@ -386,7 +386,7 @@ func TestHandleStreaming_OutputLoopDetection_EnforceMode(t *testing.T) {
 	// Build SSE body with 5 copies of the same sentence
 	sentence := "Tabii, şimdi sorguluyorum:"
 	var bodyParts []string
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		chunk := makeChunk(sentence)
 		bodyParts = append(bodyParts, "data: "+toJSON(t, chunk)+"\n\n")
 	}
@@ -467,7 +467,7 @@ func TestHandleStreaming_OutputLoopDetection_ObserveMode(t *testing.T) {
 	// Build SSE body with 3 copies of the same sentence
 	sentence := "Aynı cümle tekrar ediyor. "
 	var bodyParts []string
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		chunk := makeChunk(sentence)
 		bodyParts = append(bodyParts, "data: "+toJSON(t, chunk)+"\n\n")
 	}
@@ -530,7 +530,7 @@ func TestHandleStreaming_OutputLoopDetection_OffMode(t *testing.T) {
 
 	sentence := "Aynı cümle. "
 	var bodyParts []string
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		chunk := makeChunk(sentence)
 		bodyParts = append(bodyParts, "data: "+toJSON(t, chunk)+"\n\n")
 	}

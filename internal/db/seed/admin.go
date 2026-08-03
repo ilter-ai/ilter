@@ -16,10 +16,10 @@ import (
 // it does nothing and returns created=false so re-running `ilter init` never
 // rotates credentials or duplicates the account.
 func EnsureAdminAccount(store *dbpkg.SQLiteStore) (email, password, apiKeyToken string, created bool, err error) {
-	if _, err := store.GetGroupByName("admin"); err == nil {
+	if _, checkErr := store.GetGroupByName("admin"); checkErr == nil {
 		return "", "", "", false, nil
-	} else if err != sql.ErrNoRows {
-		return "", "", "", false, fmt.Errorf("check admin group: %w", err)
+	} else if checkErr != sql.ErrNoRows {
+		return "", "", "", false, fmt.Errorf("check admin group: %w", checkErr)
 	}
 
 	group, err := store.CreateGroup(auth.CreateGroupRequest{
@@ -46,8 +46,8 @@ func EnsureAdminAccount(store *dbpkg.SQLiteStore) (email, password, apiKeyToken 
 		return "", "", "", false, fmt.Errorf("create admin user: %w", err)
 	}
 
-	if err := store.AddUserToGroup(user.ID, group.ID, "admin"); err != nil {
-		return "", "", "", false, fmt.Errorf("add admin user to group: %w", err)
+	if addErr := store.AddUserToGroup(user.ID, group.ID, "admin"); addErr != nil {
+		return "", "", "", false, fmt.Errorf("add admin user to group: %w", addErr)
 	}
 
 	groupID, userID := group.ID, user.ID

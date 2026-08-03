@@ -80,6 +80,15 @@ func (p *AnthropicProvider) TransformStreamChunk(data []byte) (*model.ChatComple
 					},
 				},
 			}, false, nil
+		} else if event.Delta != nil && event.Delta.Type == "thinking_delta" {
+			return &model.ChatCompletionChunk{
+				Choices: []model.ChunkChoice{
+					{
+						Index: 0,
+						Delta: model.Delta{ReasoningContent: event.Delta.Thinking},
+					},
+				},
+			}, false, nil
 		} else if event.Delta != nil && event.Delta.Type == "input_json_delta" {
 			return &model.ChatCompletionChunk{
 				Choices: []model.ChunkChoice{

@@ -45,8 +45,7 @@ func (s *SQLiteStore) Migrate() error {
 
 	results, err := provider.Up(ctx)
 	if err != nil {
-		var partialErr *goose.PartialError
-		if errors.As(err, &partialErr) {
+		if partialErr, ok := errors.AsType[*goose.PartialError](err); ok {
 			slog.Error(
 				"migration failed",
 				"applied", len(partialErr.Applied),

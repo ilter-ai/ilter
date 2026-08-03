@@ -36,11 +36,28 @@ type Handler struct {
 	store            *db.SQLiteStore
 	cooldownStore    cooldown.Store
 	fallbackExecutor *fallback.FallbackExecutor
+	chatChain        http.Handler
 }
 
 func (h *Handler) SetFallbackExecutor(fe *fallback.FallbackExecutor, store cooldown.Store) {
 	h.fallbackExecutor = fe
 	h.cooldownStore = store
+}
+
+// SetChatChain wires in the chat-completions middleware chain (auth, budget,
+// PII, guardrails, MCP tool injection, smart routing, semantic cache, loop
+// detection) so that wire-format-translating endpoints like AnthropicMessages
+// and LegacyCompletions can re-enter it and get identical behavior/headers to
+// a native /v1/chat/completions request.
+func (h *Handler) SetChatChain(chain http.Handler) {
+	h.chatChain = chain
+}
+
+// ChatChain returns the chat-completions middleware chain, for other
+// consumers (e.g. the dashboard's request-replay feature) that need the same
+// reference SetChatChain was given.
+func (h *Handler) ChatChain() http.Handler {
+	return h.chatChain
 }
 
 func NewHandler(

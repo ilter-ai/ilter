@@ -5,10 +5,6 @@ package db
 // Centralized here instead of duplicated per-file — check here before adding
 // a new one.
 
-func strPtr(s string) *string {
-	return &s
-}
-
 func strDeref(v *string) string {
 	if v == nil {
 		return ""

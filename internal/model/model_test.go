@@ -223,7 +223,7 @@ func TestChatCompletionChunkWithFinishReason(t *testing.T) {
 			{
 				Index:        0,
 				Delta:        Delta{},
-				FinishReason: ptr("stop"),
+				FinishReason: new("stop"),
 			},
 		},
 	}
@@ -288,9 +288,4 @@ func TestValidationMessagesRequired(t *testing.T) {
 	err = json.Unmarshal(b, &req2)
 	assert.NoError(t, err)
 	assert.Empty(t, req2.Messages)
-}
-
-// Helper function to create a pointer to a string
-func ptr(s string) *string {
-	return &s
 }

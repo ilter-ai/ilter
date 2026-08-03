@@ -2,7 +2,6 @@ package db
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -26,7 +25,7 @@ func TestCreateAPIKey_Basic(t *testing.T) {
 
 	assert.Equal(t, "my-key", key.Name)
 	assert.NotEmpty(t, key.ID)
-	assert.True(t, strings.HasPrefix(token, "ilter_"))
+	assert.Len(t, token, 64)
 	assert.Empty(t, key.GroupID)
 	assert.Empty(t, key.UserID)
 	assert.Equal(t, 100.0, key.MonthlyBudgetUSD)
@@ -678,7 +677,7 @@ func TestMultipleCreateAPIKey_UniqueNames(t *testing.T) {
 	ts := setupTestStore(t)
 	defer ts.close()
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		name := fmt.Sprintf("unique-key-%d", i)
 		_, _, err := ts.store.CreateAPIKey(name, nil, nil, float64(i)*10, int64(i)*100, i, int64(i)*1000, nil, nil, nil)
 		require.NoError(t, err)

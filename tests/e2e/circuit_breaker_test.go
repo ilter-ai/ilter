@@ -57,7 +57,7 @@ func TestCircuitBreakerE2E(t *testing.T) {
 			require.Equal(t, 200, code, "%s %s expected 200, got %d", tt.method, tt.path, code)
 
 			// Verify response is valid JSON
-			var resp map[string]interface{}
+			var resp map[string]any
 			require.NoError(t, json.Unmarshal([]byte(bodyStr), &resp),
 				"%s %s response must be valid JSON", tt.method, tt.path)
 

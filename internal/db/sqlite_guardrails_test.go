@@ -77,7 +77,7 @@ func TestGuardrailRules_CreateListToggleUpdateDelete(t *testing.T) {
 	found, err = s.UpdateGuardrailRule(UpdateGuardrailRuleParams{
 		ID:         "rule-1",
 		Name:       "Block SSNs v2",
-		TargetType: strPtr("user"),
+		TargetType: new("user"),
 		TargetID:   &newTargetID,
 	})
 	if err != nil {

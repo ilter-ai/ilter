@@ -199,7 +199,7 @@ func TestChatHandler_ListMessages_Pagination(t *testing.T) {
 	id := createResp.Conversation.ID
 
 	const total = 5
-	for i := 0; i < total; i++ {
+	for i := range total {
 		msgBody, _ := json.Marshal(map[string]string{
 			"role":    "user",
 			"content": fmt.Sprintf("message %d", i),

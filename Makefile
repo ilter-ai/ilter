@@ -24,20 +24,25 @@ export ILTER_REDIS_URL
 check: check-go check-web
 
 check-go: build-go
-	$(RTK) golangci-lint run ./... --out-format=tab
+	$(RTK) golangci-lint run ./...
 
 check-web: build-web
 	cd $(WEB_DIR) && bun run astro check && bun run biome check .
 check-strict: check
-	$(RTK) golangci-lint run --enable=gosec,gocritic,bodyclose,contextcheck ./... --out-format=tab
+	$(RTK) golangci-lint run --enable=gosec,gocritic,bodyclose,contextcheck ./...
 	cd $(WEB_DIR) && bun run knip
 	$(RTK) go test -race -count=1 ./...
 check-diff:
-	$(RTK) golangci-lint run --new-from-rev=origin/main ./... --out-format=tab
+	$(RTK) golangci-lint run --new-from-rev=origin/main ./...
 	cd $(WEB_DIR) && bun run biome check --changed --since=main .
 fix:
-	gofumpt -l -w .
-	$(RTK) golangci-lint run --fix ./... --out-format=tab
+	$(RTK) go run golang.org/x/tools/go/analysis/passes/modernize/cmd/modernize@latest -fix -test \
+		-any -atomictypes -embedlit -errorsastype -forvar -mapsloop -minmax \
+		-newexpr -plusbuild -rangeint -reflecttypefor -slicesbackward \
+		-slicescontains -slicessort -stringsbuilder -stringscut \
+		-stringscutprefix -stringsseq -testingcontext -waitgroupgo ./...
+	$(RTK) gofumpt -l -w .
+	$(RTK) golangci-lint run --fix ./...
 	cd $(WEB_DIR) && bun run biome check --write .
 
 build: sync-version build-web build-go

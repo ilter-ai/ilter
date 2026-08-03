@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -42,13 +43,7 @@ func TestRuleSets(t *testing.T) {
 	sets := c.RuleSets()
 	expected := []string{RuleSetPromptInjection, RuleSetToxicContent, RuleSetInputGuardrails}
 	for _, exp := range expected {
-		found := false
-		for _, s := range sets {
-			if s == exp {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(sets, exp)
 		if !found {
 			t.Errorf("RuleSets() missing %q; got %v", exp, sets)
 		}
@@ -66,13 +61,7 @@ func TestRuleSets_WithCustom(t *testing.T) {
 		t.Fatalf("NewChecker() failed: %v", err)
 	}
 	sets := c.RuleSets()
-	found := false
-	for _, s := range sets {
-		if s == RuleSetCustom {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(sets, RuleSetCustom)
 	if !found {
 		t.Errorf("RuleSets() missing custom rule set; got %v", sets)
 	}

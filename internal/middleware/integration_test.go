@@ -59,7 +59,7 @@ func TestMiddlewareChain_Auth(t *testing.T) {
 	r.Use(auth.Handler)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		keyID := reqmeta.GetKeyID(r.Context())
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"status": "ok",
 			"key_id": keyID,
 		})
@@ -116,7 +116,7 @@ func TestMiddlewareChain_Auth(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(rr.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "ok", resp["status"])
@@ -133,7 +133,7 @@ func TestMiddlewareChain_Auth(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(rr.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "ok", resp["status"])
@@ -151,7 +151,7 @@ func TestMiddlewareChain_Auth(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(rr.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "ok", resp["status"])
@@ -168,7 +168,7 @@ func TestMiddlewareChain_AdminKey(t *testing.T) {
 	r.Use(auth.Handler)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		keyID := reqmeta.GetKeyID(r.Context())
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"status": "ok",
 			"key_id": keyID,
 		})
@@ -182,7 +182,7 @@ func TestMiddlewareChain_AdminKey(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(rr.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "ok", resp["status"])
@@ -213,7 +213,7 @@ func TestMiddlewareChain_ContextPropagation(t *testing.T) {
 		budget, budgetOk := reqmeta.GetAPIKeyBudget(r.Context())
 		dailyLimit, dailyLimitOk := reqmeta.GetAPIKeyDailyLimit(r.Context())
 
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"key_id":         keyID,
 			"budget":         budget,
 			"budget_ok":      budgetOk,
@@ -230,7 +230,7 @@ func TestMiddlewareChain_ContextPropagation(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(rr.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "admin", resp["key_id"])
@@ -248,7 +248,7 @@ func TestMiddlewareChain_ContextPropagation(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(rr.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		keyID := resp["key_id"].(string)
@@ -291,7 +291,7 @@ func TestMiddlewareChain_PIIMasking(t *testing.T) {
 		}
 
 		keyID := reqmeta.GetKeyID(r.Context())
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"status":          "ok",
 			"key_id":          keyID,
 			"masked_content":  content,
@@ -316,7 +316,7 @@ func TestMiddlewareChain_PIIMasking(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(rr.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "ok", resp["status"])
@@ -339,7 +339,7 @@ func TestMiddlewareChain_PIIMasking(t *testing.T) {
 			r.Body.Close()
 
 			keyID := reqmeta.GetKeyID(r.Context())
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "ok",
 				"key_id": keyID,
 				"body":   string(bodyBytes),
@@ -362,7 +362,7 @@ func TestMiddlewareChain_PIIMasking(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(rr.Body.Bytes(), &resp)
 		require.NoError(t, err)
 
@@ -426,7 +426,7 @@ func TestMiddlewareChain_PIIMasking(t *testing.T) {
 
 			// Find placeholder and echo it back in the response
 			var placeholder string
-			for _, word := range strings.Fields(content) {
+			for word := range strings.FieldsSeq(content) {
 				if strings.HasPrefix(word, "PII:") {
 					placeholder = strings.TrimRight(word, ".,")
 					break
@@ -479,11 +479,11 @@ func TestMiddlewareChain_ErrorResponseFormat(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, rr.Code)
 		assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
 
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err := json.Unmarshal(rr.Body.Bytes(), &parsed)
 		require.NoError(t, err, "response must be valid JSON")
 
-		errObj, ok := parsed["error"].(map[string]interface{})
+		errObj, ok := parsed["error"].(map[string]any)
 		require.True(t, ok, "response must have error object")
 
 		errType, ok := errObj["type"].(string)
@@ -530,7 +530,7 @@ func TestMiddlewareChain_ReversibleCrossRequest(t *testing.T) {
 		_ = json.Unmarshal(bodyBytes, &req)
 		content := req.Messages[0].Content.(string)
 
-		for _, word := range strings.Fields(content) {
+		for word := range strings.FieldsSeq(content) {
 			if strings.HasPrefix(word, "PII:") {
 				sharedPlaceholder = strings.TrimRight(word, ".,")
 				break

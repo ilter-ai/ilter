@@ -111,10 +111,7 @@ func (r *JobRunner) Enqueue(ctx context.Context, req ExecutionRequest) (string, 
 		}
 	}
 
-	r.wg.Add(1)
-	go func() {
-		defer r.wg.Done()
-
+	r.wg.Go(func() {
 		// Claim the run atomically — conditional UPDATE ensures only one
 		// executor (us or the reconciler) claims this run.
 		claimed, err := r.store.ClaimPendingRun(context.Background(), runID, r.cfg.MaxAttempts)
@@ -125,7 +122,7 @@ func (r *JobRunner) Enqueue(ctx context.Context, req ExecutionRequest) (string, 
 		run.Status = "running"
 		run.Attempts++ // mirror the DB increment
 		r.runExecution(context.Background(), *job, run, start)
-	}()
+	})
 	return runID, nil
 }
 

@@ -49,7 +49,7 @@ func TestCircuitBreaker_Flow(t *testing.T) {
 	req, _ := http.NewRequestWithContext(context.Background(), "POST", "http://localhost", nil)
 
 	// 1. Successive failures to trigger Open state
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		resp, err := transport.RoundTrip(req)
 		assert.Error(t, err)
 		assert.Nil(t, resp)
@@ -100,7 +100,7 @@ func TestCircuitBreaker_5xxStatus(t *testing.T) {
 	req, _ := http.NewRequestWithContext(context.Background(), "POST", "http://localhost", nil)
 
 	// 500 status should trip the breaker
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		resp, err := transport.RoundTrip(req)
 		assert.Error(t, err)
 		assert.Nil(t, resp)

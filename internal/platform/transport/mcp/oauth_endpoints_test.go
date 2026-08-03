@@ -740,7 +740,7 @@ func TestOAuthEndpoints_KeyID_Clone(t *testing.T) {
 	accessToken, ok := tokenResp["access_token"].(string)
 	require.True(t, ok)
 	assert.NotEqual(t, rawKey, accessToken, "cloned key must be different from the source")
-	assert.Contains(t, accessToken, "ilter_")
+	assert.Len(t, accessToken, 64)
 	assert.Equal(t, "bearer", tokenResp["token_type"])
 
 	// Verify the cloned key inherited the source limits.
@@ -864,8 +864,7 @@ func TestOAuthEndpoints_CreateNew_HappyPath(t *testing.T) {
 
 	accessToken, ok := tokenResp["access_token"].(string)
 	require.True(t, ok)
-	assert.NotEmpty(t, accessToken)
-	assert.Contains(t, accessToken, "ilter_")
+	assert.Len(t, accessToken, 64)
 	assert.Equal(t, "bearer", tokenResp["token_type"])
 
 	// 4. Verify the key was actually persisted in DB.

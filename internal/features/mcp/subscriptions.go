@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"sync"
 
-	"github.com/ilter-ai/ilter/internal/features/mcp/protocol/v20260728"
+	v20260728 "github.com/ilter-ai/ilter/internal/features/mcp/protocol/v20260728"
 )
 
 // SubscriptionBroker fans out change notifications (toolsListChanged, etc.)

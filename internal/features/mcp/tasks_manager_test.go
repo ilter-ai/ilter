@@ -35,7 +35,7 @@ func waitForStatus(t *testing.T, tm *TaskManager, id string, want TaskStatus, ti
 func TestTaskManager_RunAsync_Success(t *testing.T) {
 	tm := newTestTaskManager(t)
 
-	id, err := tm.RunAsync("key1", "srv1", "slow-tool", json.RawMessage(`{}`), func(ctx context.Context, taskID string) (json.RawMessage, error) {
+	id, err := tm.RunAsync("key1", "srv1", "slow-tool", json.RawMessage(`{}`), func(_ context.Context, _ string) (json.RawMessage, error) {
 		return json.RawMessage(`{"content":[{"type":"text","text":"done"}]}`), nil
 	})
 	if err != nil {
@@ -54,7 +54,7 @@ func TestTaskManager_RunAsync_Success(t *testing.T) {
 func TestTaskManager_RunAsync_Failure(t *testing.T) {
 	tm := newTestTaskManager(t)
 
-	id, err := tm.RunAsync("key1", "srv1", "broken-tool", nil, func(ctx context.Context, taskID string) (json.RawMessage, error) {
+	id, err := tm.RunAsync("key1", "srv1", "broken-tool", nil, func(_ context.Context, _ string) (json.RawMessage, error) {
 		return nil, errors.New("boom")
 	})
 	if err != nil {

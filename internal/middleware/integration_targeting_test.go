@@ -52,7 +52,7 @@ func TestTargeting_AuthSetsUserContext(t *testing.T) {
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		userID := reqmeta.GetUserID(r.Context())
 		groupIDs := reqmeta.GetGroupIDs(r.Context())
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"user_id":   userID,
 			"group_ids": groupIDs,
 		})
@@ -65,7 +65,7 @@ func TestTargeting_AuthSetsUserContext(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	var resp map[string]interface{}
+	var resp map[string]any
 	err = json.Unmarshal(rr.Body.Bytes(), &resp)
 	require.NoError(t, err)
 
@@ -95,7 +95,7 @@ func TestTargeting_LegacyKeyNoOwner(t *testing.T) {
 	r.Use(auth.Handler)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		userID := reqmeta.GetUserID(r.Context())
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"user_id": userID,
 		})
 	})
@@ -107,7 +107,7 @@ func TestTargeting_LegacyKeyNoOwner(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	var resp map[string]interface{}
+	var resp map[string]any
 	err = json.Unmarshal(rr.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Nil(t, resp["user_id"])
@@ -124,7 +124,7 @@ func TestTargeting_AdminKeyNoUserContext(t *testing.T) {
 	r.Use(auth.Handler)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		userID := reqmeta.GetUserID(r.Context())
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"user_id": userID,
 		})
 	})
@@ -136,7 +136,7 @@ func TestTargeting_AdminKeyNoUserContext(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	var resp map[string]interface{}
+	var resp map[string]any
 	err := json.Unmarshal(rr.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Nil(t, resp["user_id"])

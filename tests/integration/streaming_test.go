@@ -231,14 +231,14 @@ func TestStreamingE2E_SSEFormat(t *testing.T) {
 	doneFound := false
 	for _, line := range lines {
 		line = strings.TrimRight(line, "\r")
-		if strings.HasPrefix(line, "data: ") {
-			data := strings.TrimPrefix(line, "data: ")
+		if after, ok := strings.CutPrefix(line, "data: "); ok {
+			data := after
 			if data == "[DONE]" {
 				doneFound = true
 			} else {
 				dataLineCount++
 				// Each data line (except [DONE]) must be valid JSON
-				var parsed map[string]interface{}
+				var parsed map[string]any
 				if err := json.Unmarshal([]byte(data), &parsed); err != nil {
 					t.Errorf("SSE data line is not valid JSON: %q - %v", data, err)
 				}
@@ -283,7 +283,7 @@ func TestStreamingE2E_NonStreamingResponse(t *testing.T) {
 	}
 
 	// Response should be valid JSON, not SSE
-	var resp map[string]interface{}
+	var resp map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("non-streaming response is not valid JSON: %v - body: %s", err, rr.Body.String())
 	}

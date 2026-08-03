@@ -16,15 +16,12 @@ import (
 	"github.com/ilter-ai/ilter/internal/config/openapi"
 	"github.com/ilter-ai/ilter/internal/db"
 	"github.com/ilter-ai/ilter/internal/features/mcp/protocol"
-	"github.com/ilter-ai/ilter/internal/features/mcp/protocol/v20260728"
+	v20260728 "github.com/ilter-ai/ilter/internal/features/mcp/protocol/v20260728"
 	"github.com/ilter-ai/ilter/internal/model"
 	"github.com/ilter-ai/ilter/internal/version"
 )
 
-const (
-	mcpProtocolVersion = "2025-03-26"
-	mcpServerName      = "ilter-mcp-gateway"
-)
+const mcpServerName = "ilter-mcp-gateway"
 
 // mcpServerVersion is ilter's own application version — the same one
 // reported by `ilter --version` — not a separately-versioned MCP server

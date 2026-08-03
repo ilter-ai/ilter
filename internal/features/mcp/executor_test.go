@@ -37,7 +37,7 @@ func (m *mockTransportForExecutor) Call(_ context.Context, req *JSONRPCRequest) 
 	if resp, ok := m.responses[req.Method]; ok {
 		return resp, nil
 	}
-	return NewSuccessResponse(req.ID, map[string]interface{}{"ok": true}), nil
+	return NewSuccessResponse(req.ID, map[string]any{"ok": true}), nil
 }
 
 func TestExecutor_ExecuteTool_Success(t *testing.T) {
@@ -194,9 +194,9 @@ func TestParseToolResult(t *testing.T) {
 	})
 
 	t.Run("map input", func(t *testing.T) {
-		m := map[string]interface{}{
-			"content": []interface{}{
-				map[string]interface{}{"type": "text", "text": "from map"},
+		m := map[string]any{
+			"content": []any{
+				map[string]any{"type": "text", "text": "from map"},
 			},
 		}
 		r := parseToolResult(m)
@@ -206,7 +206,7 @@ func TestParseToolResult(t *testing.T) {
 	})
 
 	t.Run("map with empty content", func(t *testing.T) {
-		m := map[string]interface{}{"isError": false}
+		m := map[string]any{"isError": false}
 		r := parseToolResult(m)
 		if len(r.Content) != 1 || r.Content[0].Text != "ok" {
 			t.Fatalf("expected fallback 'ok', got %+v", r.Content)

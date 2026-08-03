@@ -218,7 +218,7 @@ func boolToInt(b bool) int {
 	return 0
 }
 
-func nullIfEmpty(s string) interface{} {
+func nullIfEmpty(s string) any {
 	if s == "" {
 		return nil
 	}

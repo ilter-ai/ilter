@@ -14,7 +14,7 @@ import (
 	"github.com/ilter-ai/ilter/internal/config"
 	mcp "github.com/ilter-ai/ilter/internal/features/mcp"
 	"github.com/ilter-ai/ilter/internal/features/mcp/protocol"
-	"github.com/ilter-ai/ilter/internal/features/mcp/protocol/v20260728"
+	v20260728 "github.com/ilter-ai/ilter/internal/features/mcp/protocol/v20260728"
 	"github.com/ilter-ai/ilter/internal/platform/reqmeta"
 )
 

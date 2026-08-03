@@ -131,7 +131,7 @@ func TestClientManagerConcurrency(t *testing.T) {
 	done := make(chan bool)
 	const n = 20
 
-	for i := 0; i < n; i++ {
+	for range n {
 		go func() {
 			client, err := m.GetOrCreate(context.Background(), server)
 			if err != nil {
@@ -144,7 +144,7 @@ func TestClientManagerConcurrency(t *testing.T) {
 		}()
 	}
 
-	for i := 0; i < n; i++ {
+	for range n {
 		<-done
 	}
 }
