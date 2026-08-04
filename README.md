@@ -57,34 +57,51 @@ The agent picks binary vs. Docker, generates the admin key, reuses any provider 
     <td width="33%">
       <img src="docs/assets/overview.jpg" alt="Overview dashboard" />
       <br /><strong>Overview</strong><br />
-      Live KPIs, daily cost trend, provider/model breakdown, and a one-click toggle hub for every feature.
-    </td>
-    <td width="33%">
-      <img src="docs/assets/chat.jpg" alt="Chat playground" />
-      <br /><strong>Chat</strong><br />
-      Built-in playground to test prompts against any registered model without leaving the dashboard.
+      Live KPIs, daily cost trend, and provider/model breakdown across all AI traffic.
     </td>
     <td width="33%">
       <img src="docs/assets/mcp-marketplace.jpg" alt="MCP Marketplace" />
       <br /><strong>MCP Marketplace</strong><br />
       Browse and one-click install community MCP servers — filesystem, GitHub, Postgres, and more.
     </td>
-  </tr>
-  <tr>
     <td width="33%">
       <img src="docs/assets/smart-router.jpg" alt="Smart Router strategies" />
       <br /><strong>Smart Router</strong><br />
-      Manage routing strategies — cost-first, quality-first, or custom rules — and switch the active one live.
+      Route each request by complexity — cost-first, quality-first, or custom rules — switched live.
+    </td>
+  </tr>
+  <tr>
+    <td width="33%">
+      <img src="docs/assets/pii-protection.jpg" alt="PII Guard" />
+      <br /><strong>PII Guard</strong><br />
+      Detect and mask emails, IDs, cards, and IBANs before data ever leaves your network.
+    </td>
+    <td width="33%">
+      <img src="docs/assets/budget.jpg" alt="Budget control" />
+      <br /><strong>Budget Control</strong><br />
+      Per-key monthly and daily spend limits; requests stop automatically when a budget is hit.
+    </td>
+    <td width="33%">
+      <img src="docs/assets/guardrails.jpg" alt="Guardrails" />
+      <br /><strong>Guardrails</strong><br />
+      Block prompt injection and toxic content with rule sets, scoped globally or per key.
+    </td>
+  </tr>
+  <tr>
+    <td width="33%">
+      <img src="docs/assets/loop-detection.jpg" alt="Loop detection" />
+      <br /><strong>Loop Detection</strong><br />
+      Catch runaway agent loops by rate, fingerprint, and cost before they burn through budget.
     </td>
     <td width="33%">
       <img src="docs/assets/requests-logs.jpg" alt="Request logs" />
-      <br /><strong>Logs</strong><br />
+      <br /><strong>Request Logs</strong><br />
       Full request history with cost, latency, and status, filterable by time range and provider.
     </td>
     <td width="33%">
-      <img src="docs/assets/jobs.jpg" alt="Scheduled jobs" />
-      <br /><strong>Jobs</strong><br />
-      Cron-scheduled AI workflows with next/last run status, right from the embedded scheduler.
+      <img src="docs/assets/chat.jpg" alt="Chat playground" />
+      <br /><strong>Chat Playground</strong><br />
+      Test prompts against any registered model without leaving the dashboard.
     </td>
   </tr>
 </table>
