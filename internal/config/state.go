@@ -307,6 +307,27 @@ func mergeRuntimeConfigValues(snap *RuntimeConfigSnapshot, values map[string]str
 	mergeFallbackOverrides(snap, values)
 	mergeScalarOverrides(snap, values)
 	mergeFeatureFlagOverrides(snap, values)
+	mergeRoutingOverrides(snap, values)
+}
+
+// mergeRoutingOverrides applies the "routing:*" runtime_config keys that pick
+// the smart-router complexity scorer: routing:scorer ("jev" selects the
+// TypeSafe Jev scorer), routing:jev_provider (registered "jev" or
+// "opencode_zen" provider name; empty = public Zen free endpoint) and
+// routing:jev_model.
+func mergeRoutingOverrides(snap *RuntimeConfigSnapshot, values map[string]string) {
+	scorer, ok := values["routing:scorer"]
+	if !ok || scorer == "" {
+		return
+	}
+	snap.Routing.Scorer.Type = scorer
+	if scorer != "jev" {
+		return
+	}
+	snap.Routing.Scorer.Jev = &JevScorerConfig{
+		Provider: values["routing:jev_provider"],
+		Model:    values["routing:jev_model"],
+	}
 }
 
 // parseBool wraps strconv.ParseBool with the same (value, ok) signature.

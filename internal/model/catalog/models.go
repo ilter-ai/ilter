@@ -49,6 +49,15 @@ func LoadFromDB(getAll func() ([]ModelInfo, error)) error {
 	return nil
 }
 
+// CapabilityDecision marks typed-decision models (e.g. TypeSafe Jev) that
+// answer structured questions and cannot serve chat completions.
+const CapabilityDecision = "decision"
+
+// IsDecisionModel reports whether the model is decision-only (not chat-capable).
+func (m ModelInfo) IsDecisionModel() bool {
+	return slices.Contains(m.Capabilities, CapabilityDecision)
+}
+
 func (m ModelInfo) SupportsTools() bool {
 	return slices.Contains(m.Capabilities, "tools") || slices.Contains(m.Capabilities, "function_calling")
 }

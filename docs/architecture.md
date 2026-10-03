@@ -337,12 +337,14 @@ The smart router has two independent layers:
 
 **2. Configurable Routing Strategy** — strategies are `RoutingStrategy` JSON documents persisted in the `runtime_config` table under `section=routing_strategy`. Each strategy configures:
 
-- **scorer_type** — `"heuristic"` (default, built-in) or `"llm"` (external LLM-based scoring)
+- **scorer_type** — `"heuristic"` (default, built-in), `"llm"` (external LLM-based scoring), `"embedding"`, `"trainable"` or `"jev"` (TypeSafe Jev decision model, see below)
 - **complexity_thresholds** — economy (default: 15) and standard (default: 50) boundaries
 - **rules** — optional rule DSL for targeted routing: `complexity < N`, `model == "name"`, `prompt contains "text"`
 - **provider_preference** — `"cheapest"` (default) or `"round-robin"` across providers in the selected tier
 
 The active strategy is switchable at runtime via the dashboard or admin API (`PUT /api/smart-loadbalancer/active`).
+
+**Jev scorer.** [TypeSafe Jev](https://openrouter.ai/docs/guides/community/jev) is a typed decision model: it returns a probability per answer instead of text. The `jev` scorer posts the prompt to `{base}/systemone` with one `choice` question (`economy` / `standard` / `premium`) and maps the probabilities to the 0-100 scale (economy=5, standard=32, premium=75, probability-weighted), so the usual thresholds and rules apply. Results are cached by content hash; any error falls back to the heuristic scorer. Enable it with runtime_config keys `routing:scorer=jev`, optional `routing:jev_provider` (a registered `jev` or `opencode_zen` provider whose base URL and key are used) and `routing:jev_model`. With no provider it calls the public OpenCode Zen endpoint with the free `jev-1.13-free` model (no key). Jev models carry the `decision` capability and are never selected as chat routing targets.
 
 | Score Range | Tier | Model Tier | Cost Saving |
 |-------------|------|-----------|-------------|

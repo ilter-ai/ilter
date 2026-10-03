@@ -15,6 +15,7 @@ export const providerMeta: Record<string, { label: string; dot: string }> = {
   opencode: { label: 'OpenCode', dot: 'bg-teal-500' },
   opencode_go: { label: 'OpenCode Go', dot: 'bg-teal-500' },
   opencode_zen: { label: 'OpenCode Zen', dot: 'bg-teal-500' },
+  jev: { label: 'Jev (TypeSafe)', dot: 'bg-violet-500' },
   ollama: { label: 'Ollama', dot: 'bg-gray-500' },
   qwen: { label: 'Qwen', dot: 'bg-cyan-500' },
 }

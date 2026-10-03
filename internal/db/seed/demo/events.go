@@ -10,7 +10,7 @@ import (
 // ── Package-level variables used by event seed functions ──
 
 var (
-	models   = []string{"big-pickle", "deepseek-v4-flash-free", "hy3-free", "mimo-v2.5-free", "nemotron-3-ultra-free", "north-mini-code-free"}
+	models   = []string{"big-pickle", "deepseek-v4-flash-free", "mimo-v2.6-flash-free", "mimo-v2.5-free", "nemotron-3-ultra-free", "nemotron-3.5-lightning-free"}
 	statuses = []int{200, 200, 200, 200, 201, 400, 401, 429, 500}
 )
 
@@ -52,12 +52,12 @@ func seedAuditLog(db *sql.DB, rng *rand.Rand, keyIDs []string, _ time.Time) erro
 	defer func() { _ = stmt.Close() }()
 
 	providerOf := map[string]string{
-		"big-pickle":             "opencode_zen",
-		"deepseek-v4-flash-free": "opencode_zen",
-		"hy3-free":               "opencode_zen",
-		"mimo-v2.5-free":         "opencode_zen",
-		"nemotron-3-ultra-free":  "opencode_zen",
-		"north-mini-code-free":   "opencode_zen",
+		"big-pickle":                  "opencode_zen",
+		"deepseek-v4-flash-free":      "opencode_zen",
+		"mimo-v2.6-flash-free":        "opencode_zen",
+		"mimo-v2.5-free":              "opencode_zen",
+		"nemotron-3-ultra-free":       "opencode_zen",
+		"nemotron-3.5-lightning-free": "opencode_zen",
 	}
 
 	const targetRows = 50
@@ -90,12 +90,12 @@ func seedAuditLog(db *sql.DB, rng *rand.Rand, keyIDs []string, _ time.Time) erro
 
 func seedUsageDaily(db *sql.DB, rng *rand.Rand, keyIDs []string, today time.Time) error {
 	providerOf := map[string]string{
-		"big-pickle":             "opencode_zen",
-		"deepseek-v4-flash-free": "opencode_zen",
-		"hy3-free":               "opencode_zen",
-		"mimo-v2.5-free":         "opencode_zen",
-		"nemotron-3-ultra-free":  "opencode_zen",
-		"north-mini-code-free":   "opencode_zen",
+		"big-pickle":                  "opencode_zen",
+		"deepseek-v4-flash-free":      "opencode_zen",
+		"mimo-v2.6-flash-free":        "opencode_zen",
+		"mimo-v2.5-free":              "opencode_zen",
+		"nemotron-3-ultra-free":       "opencode_zen",
+		"nemotron-3.5-lightning-free": "opencode_zen",
 	}
 
 	stmt, err := db.Prepare(

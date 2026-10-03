@@ -2,6 +2,7 @@ package smartrouter
 
 import (
 	"context"
+	"log/slog"
 	"regexp"
 	"strings"
 
@@ -74,7 +75,7 @@ func ScoreComplexity(ctx context.Context, messages []model.Message) float64 {
 // tryBuildScorer attempts to construct the configured non-heuristic scorer
 // type, returning nil if its config is missing or construction fails (the
 // caller falls back to the heuristic scorer in that case).
-func tryBuildScorer(sc config.ScorerConfig) Scorer {
+func tryBuildScorer(sc config.ScorerConfig, providers []config.ProviderConfig) Scorer {
 	switch sc.Type {
 	case "llm":
 		if sc.LLM == nil {
@@ -90,6 +91,17 @@ func tryBuildScorer(sc config.ScorerConfig) Scorer {
 		if s, err := NewEmbeddingScorer(sc.Embedding); err == nil {
 			return s
 		}
+	case "jev":
+		cfg := sc.Jev
+		if cfg == nil {
+			cfg = &config.JevScorerConfig{}
+		}
+		s, err := NewJevScorer(cfg, providers)
+		if err != nil {
+			slog.Warn("Jev scorer unavailable, using heuristic", "error", err)
+			return nil
+		}
+		return s
 	case "trainable":
 		if sc.Trainable == nil {
 			return nil
@@ -101,11 +113,12 @@ func tryBuildScorer(sc config.ScorerConfig) Scorer {
 	return nil
 }
 
-func NewScorerFromConfig(sc config.ScorerConfig) Scorer {
+// providers resolves the named provider of provider-backed scorers (jev).
+func NewScorerFromConfig(sc config.ScorerConfig, providers []config.ProviderConfig) Scorer {
 	if sc.Type == "" || sc.Type == "heuristic" {
 		return NewHeuristicScorer()
 	}
-	if s := tryBuildScorer(sc); s != nil {
+	if s := tryBuildScorer(sc, providers); s != nil {
 		return s
 	}
 	return NewHeuristicScorer()

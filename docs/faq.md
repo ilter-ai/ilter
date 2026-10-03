@@ -41,6 +41,7 @@ The inbound format is independent of the upstream provider: an Anthropic-native 
 | `ollama` | Local inference, OpenAI-compatible mode |
 | `qwen` | Qwen / Alibaba DashScope OpenAI-compatible mode |
 | `opencode_go`, `opencode_zen` | OpenCode SDK-configured endpoint mapping |
+| `jev` | TypeSafe Jev decision model (`https://api.typesafe.ai/v1/systemone`); used by the Smart Router `jev` scorer, not for chat |
 | `mock` | Built-in test mock provider |
 
 ---

@@ -123,6 +123,7 @@ Connecting AI to your internal APIs or CRM usually requires heavy client-side mo
 ### ⚡ Smart Router
 Using expensive models for every simple question wastes engineering time and money. ILTER routes requests dynamically based on context.
 - **Real-Time Scoring:** `<0.03ms` heuristic complexity score (0–100) based on word count, reasoning-required phrases, code blocks, and tool calls.
+- **Jev AI Scoring (optional):** Set `routing:scorer` to `jev` and ILTER sends each prompt to [TypeSafe Jev](https://openrouter.ai/docs/guides/community/jev) as a typed `POST /systemone` decision request (economy / standard / premium). The returned tier probabilities become the complexity score, so Jev's answer picks the model tier. Uses the keyless `jev-1.13-free` model on OpenCode Zen by default; falls back to the heuristic scorer if Jev is unreachable.
 - **Automatic Tier Selection:** Routes dynamically between economy, standard, and premium models.
 - **Custom Overrides:** E.g., `complexity > 50 → gpt-4o` or `prompt contains "analyze" → claude-sonnet`.
 - **Load Balancing:** Weighted round-robin, cost-optimized, latency-optimized, and priority-based strategies across healthy provider circuits.
@@ -221,6 +222,7 @@ curl -X POST http://localhost:8181/v1/chat/completions \
 | **Ollama** | Local inference, OpenAI-compatible mode |
 | **Qwen (Alibaba)** | OpenAI-compatible, model name mapping |
 | **OpenCode** | `opencode_go` and `opencode_zen` SDK endpoint mapping |
+| **Jev (TypeSafe)** | `jev` decision-model provider (`jev-1.13`, `jev-latest`) for Smart Router scoring. Not a chat provider; Jev models on OpenCode Zen (`jev-1.13`, `jev-1.13-free`) are likewise excluded from chat routing |
 | **Mock** | Built-in mock provider for local testing |
 
 ### API Formats

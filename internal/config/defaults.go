@@ -23,6 +23,7 @@ var DefaultBaseURLs = map[string]string{
 	"gemini":       "https://generativelanguage.googleapis.com/v1beta/openai",
 	"ollama":       "http://localhost:11434",
 	"openrouter":   "https://openrouter.ai/api/v1",
+	"jev":          "https://api.typesafe.ai/v1",
 	"opencode_go":  "https://opencode.ai/zen/go/v1",
 	"opencode_zen": "https://opencode.ai/zen/v1",
 	"qwen":         "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",

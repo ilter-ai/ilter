@@ -410,10 +410,10 @@ func seedProviderModels(db *sql.DB) error {
 	}{
 		{"deepseek-v4-flash-free", "DeepSeek v4 Flash", "free", 0, 0, 65536, 4096, `["tools","code"]`},
 		{"big-pickle", "Big Pickle", "free", 0, 0, 1000000, 384000, `["tools","code"]`},
-		{"hy3-free", "Hy3", "free", 0, 0, 32768, 2048, `["tools"]`},
+		{"mimo-v2.6-flash-free", "Mimo v2.6 Flash", "free", 0, 0, 8192, 1024, `["tools","vision"]`},
 		{"mimo-v2.5-free", "Mimo v2.5", "free", 0, 0, 8192, 1024, `["tools","vision"]`},
 		{"nemotron-3-ultra-free", "Nemotron 3 Ultra", "free", 0, 0, 131072, 8192, `["tools","code","reasoning"]`},
-		{"north-mini-code-free", "North Mini Code", "free", 0, 0, 65536, 4096, `["tools","code"]`},
+		{"nemotron-3.5-lightning-free", "Nemotron 3.5 Lightning", "free", 0, 0, 131072, 8192, `["tools","code"]`},
 	}
 	for _, m := range providerModels {
 		_, err := db.Exec(
@@ -434,7 +434,7 @@ func seedSmartRouterStrategies(db *sql.DB) error {
 
 	economyStrategy := map[string]any{
 		"name":                   "economy",
-		"description":            "Cost-first — simple→deepseek-v4-flash, moderate→hy3, complex→nemotron-3-ultra",
+		"description":            "Cost-first — simple→deepseek-v4-flash, moderate→mimo-v2.6-flash, complex→nemotron-3-ultra",
 		"enabled":                true,
 		"provider_preference":    "cheapest",
 		"load_balancer_strategy": "weighted-random",
@@ -456,7 +456,7 @@ func seedSmartRouterStrategies(db *sql.DB) error {
 			{
 				"name":         "Moderate queries",
 				"condition":    "complexity between 25 60",
-				"target_model": "hy3-free",
+				"target_model": "mimo-v2.6-flash-free",
 				"priority":     90,
 				"enabled":      true,
 			},

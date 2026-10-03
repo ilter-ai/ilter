@@ -34,6 +34,7 @@ var ValidScorerTypes = []string{
 	"llm",
 	"embedding",
 	"trainable",
+	"jev",
 }
 
 // ComplexityThresholds holds the complexity-boundary values used by
@@ -46,10 +47,22 @@ type ComplexityThresholds struct {
 
 // ScorerConfig configures the scoring engine for smart routing.
 type ScorerConfig struct {
-	Type      string                 `json:"type"`                // "heuristic" | "llm" | "embedding" | "trainable"
+	Type      string                 `json:"type"`                // "heuristic" | "llm" | "embedding" | "trainable" | "jev"
 	LLM       *LLMScorerConfig       `json:"llm,omitempty"`       // present when Type == "llm"
 	Embedding *EmbeddingScorerConfig `json:"embedding,omitempty"` // present when Type == "embedding"
 	Trainable *TrainableScorerConfig `json:"trainable,omitempty"` // present when Type == "trainable"
+	Jev       *JevScorerConfig       `json:"jev,omitempty"`       // present when Type == "jev"
+}
+
+// JevScorerConfig configures the TypeSafe Jev decision-model scorer. Provider
+// is the name of a registered "jev" or "opencode_zen" provider; empty uses the
+// public OpenCode Zen free endpoint.
+type JevScorerConfig struct {
+	Provider        string `json:"provider,omitempty"`
+	Model           string `json:"model,omitempty"`
+	CacheTTL        string `json:"cache_ttl,omitempty"`
+	CacheMaxEntries int    `json:"cache_max_entries,omitempty"`
+	Timeout         string `json:"timeout,omitempty"`
 }
 
 // LLMScorerConfig configures an LLM-based complexity scorer.

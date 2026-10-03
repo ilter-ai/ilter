@@ -168,8 +168,8 @@ func seedConfigAndCatalog(db *sql.DB) error {
 func seedDefaultModelConfigs(db *sql.DB) error {
 	for _, m := range []string{
 		"big-pickle", "deepseek-v4-flash-free",
-		"hy3-free", "mimo-v2.5-free",
-		"nemotron-3-ultra-free", "north-mini-code-free",
+		"mimo-v2.6-flash-free", "mimo-v2.5-free",
+		"nemotron-3-ultra-free", "nemotron-3.5-lightning-free",
 	} {
 		if _, err := db.Exec(
 			`INSERT INTO model_configs (name, active) VALUES (?, 1)

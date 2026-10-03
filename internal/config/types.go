@@ -67,10 +67,22 @@ type ComplexityThresholdsConfig struct {
 }
 
 type ScorerConfig struct {
-	Type      string // "heuristic" (default) | "llm" | "embedding" | "trainable"
+	Type      string // "heuristic" (default) | "llm" | "embedding" | "trainable" | "jev"
 	LLM       *LLMScorerConfig
 	Embedding *EmbeddingScorerConfig
 	Trainable *TrainableScorerConfig
+	Jev       *JevScorerConfig
+}
+
+// JevScorerConfig configures the TypeSafe Jev decision-model scorer. Provider
+// names a registered provider (type "jev" or "opencode_zen") whose base URL and
+// API key are used; when empty the public OpenCode Zen free endpoint is used.
+type JevScorerConfig struct {
+	Provider        string
+	Model           string
+	CacheTTL        time.Duration
+	CacheMaxEntries int
+	Timeout         time.Duration
 }
 
 type LLMScorerConfig struct {

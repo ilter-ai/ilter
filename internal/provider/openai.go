@@ -386,7 +386,12 @@ func (p *OpenAIProvider) DiscoverModels(ctx context.Context) ([]catalog.ModelInf
 		if entry.ID == "" {
 			continue
 		}
-		models = append(models, p.openAIModelInfoFromEntry(entry.ID))
+		info := p.openAIModelInfoFromEntry(entry.ID)
+		if strings.HasPrefix(entry.ID, "jev-") {
+			// Jev answers typed questions via /systemone; it cannot serve chat.
+			info.Capabilities = []string{catalog.CapabilityDecision}
+		}
+		models = append(models, info)
 	}
 	return models, nil
 }

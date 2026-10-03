@@ -94,6 +94,8 @@ func (r *Registry) InitFromConfig(cfg *config.Config) error {
 			r.Register(NewOpenAIProvider(pCfg))
 		case "openrouter":
 			r.Register(NewOpenRouterProvider(pCfg))
+		case "jev":
+			r.Register(NewJevProvider(pCfg))
 		case "anthropic":
 			r.Register(NewAnthropicProvider(pCfg))
 		case "ollama":

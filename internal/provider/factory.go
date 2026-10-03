@@ -15,6 +15,8 @@ func NewProviderFromConfig(cfg config.ProviderConfig) (Provider, error) {
 		return NewOpenAIProvider(cfg), nil
 	case "openrouter":
 		return NewOpenRouterProvider(cfg), nil
+	case "jev":
+		return NewJevProvider(cfg), nil
 	case "anthropic":
 		return NewAnthropicProvider(cfg), nil
 	case "ollama":

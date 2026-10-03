@@ -24,7 +24,7 @@ func NewSmartRouter(cfg *config.Config, lb *LoadBalancer) *SmartRouter {
 	return &SmartRouter{
 		routingCfg: cfg.Routing,
 		lb:         lb,
-		scorer:     NewScorerFromConfig(cfg.Routing.Scorer),
+		scorer:     NewScorerFromConfig(cfg.Routing.Scorer, cfg.Providers),
 	}
 }
 
@@ -37,7 +37,7 @@ func NewSmartRouterFromCache(cache *config.Cache, lb *LoadBalancer) *SmartRouter
 	return &SmartRouter{
 		routingCfg: snap.RoutingConfig(),
 		lb:         lb,
-		scorer:     NewScorerFromConfig(snap.RoutingConfig().Scorer),
+		scorer:     NewScorerFromConfig(snap.RoutingConfig().Scorer, snap.Providers()),
 	}
 }
 
@@ -73,8 +73,7 @@ func (sr *SmartRouter) RouteRequest(ctx context.Context, req *model.ChatCompleti
 
 	selectedModel, err := sr.selectModelForTier(tier)
 	if err != nil {
-		available := sr.lb.GetAvailableModels()
-		if len(available) > 0 {
+		if available := chatModels(sr.lb.GetAvailableModels()); len(available) > 0 {
 			return available[0], score, nil
 		}
 		return "", score, fmt.Errorf("no models configured in load balancer: %w", err)
@@ -92,7 +91,7 @@ func (sr *SmartRouter) selectModelForTier(tier string) (string, error) {
 		"premium":  {},
 	}
 
-	for _, modelName := range sr.lb.GetAvailableModels() {
+	for _, modelName := range chatModels(sr.lb.GetAvailableModels()) {
 		t := "standard"
 		if entries, ok := catalog.Models[modelName]; ok && len(entries) > 0 {
 			mInfo := entries[0]
@@ -123,4 +122,20 @@ func (sr *SmartRouter) selectModelForTier(tier string) (string, error) {
 	}
 
 	return "", fmt.Errorf("no active models found for any tier")
+}
+
+// chatModels drops decision-only models (e.g. Jev) that cannot serve chat
+// completions, so they are never picked as a routing target.
+func chatModels(names []string) []string {
+	catalog.ModelsMu.RLock()
+	defer catalog.ModelsMu.RUnlock()
+	out := make([]string, 0, len(names))
+	for _, name := range names {
+		entries := catalog.Models[name]
+		if len(entries) > 0 && entries[0].IsDecisionModel() {
+			continue
+		}
+		out = append(out, name)
+	}
+	return out
 }
